@@ -1,0 +1,2223 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ผังหมู่บ้าน 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: full-bleed 3D canvas, floating instrument panels (overview right, plot card left, control bar bottom) */
+:root{
+  --scene:#e9e8e1; --surface:#fbfaf6; --surface-2:#f1f0ea; --fg:#1d2420; --muted:#69736d; --line:#dedcd2;
+  --accent:#2c5a47; --accent-soft:#dce8e1; --bar:#20302a; --bar-fg:#eef2ee; --bar-muted:#a9b8b0; --bar-on:#f4f6f3; --bar-on-fg:#1d2420;
+  --shadow:0 6px 24px rgba(30,40,35,.12);
+  --f-body:"IBM Plex Sans Thai","Noto Sans Thai","Sukhumvit Set",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --scene:#161b19; --surface:#202725; --surface-2:#29312e; --fg:#e7ebe7; --muted:#9ba69f; --line:#36403c;
+  --accent:#8cc3a6; --accent-soft:#2b3d35; --bar:#2a3833; --bar-fg:#e7ebe7; --bar-muted:#9fb0a8; --bar-on:#e7ebe7; --bar-on-fg:#1a201e;
+  --shadow:0 6px 24px rgba(0,0,0,.4); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --scene:#161b19; --surface:#202725; --surface-2:#29312e; --fg:#e7ebe7; --muted:#9ba69f; --line:#36403c;
+  --accent:#8cc3a6; --accent-soft:#2b3d35; --bar:#2a3833; --bar-fg:#e7ebe7; --bar-muted:#9fb0a8; --bar-on:#e7ebe7; --bar-on-fg:#1a201e;
+  --shadow:0 6px 24px rgba(0,0,0,.4); color-scheme:dark}
+html,body{height:100%}
+[hidden]{display:none!important}
+body{background:var(--scene);color:var(--fg);font-family:var(--f-body);font-size:14px;overflow:hidden}
+#app{position:fixed;inset:0}
+#c{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+button{font:inherit;color:inherit}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.brand{position:absolute;top:calc(16px + env(safe-area-inset-top,0px));left:calc(16px + env(safe-area-inset-left,0px));padding:12px 16px;max-width:calc(100% - 32px)}
+.eyebrow{font-size:11px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+.brand h1{font-size:18px;font-weight:700;margin:2px 0 0;text-wrap:balance}
+.brand .meta{font-size:12px;color:var(--muted);margin-top:2px}
+
+#panel{position:absolute;top:calc(16px + env(safe-area-inset-top,0px));right:calc(16px + env(safe-area-inset-right,0px));width:300px;max-height:calc(100% - 140px);overflow:auto}
+.panel-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px;border-bottom:1px solid var(--line)}
+.panel-head h2{font-size:16px;margin:0}
+#panelToggle{display:none;background:var(--surface-2);border:0;border-radius:8px;padding:4px 10px;cursor:pointer;font-size:12px}
+.panel-body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:12px}
+.total{display:flex;align-items:baseline;gap:8px}
+.total .big{font-size:34px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.total span:last-child{color:var(--muted)}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.kpi{background:var(--surface-2);border-radius:10px;padding:8px 10px}
+.kpi b{display:block;font-size:22px;font-variant-numeric:tabular-nums}
+.kpi span{font-size:12px;color:var(--muted)}
+.stack{display:flex;height:8px;border-radius:4px;overflow:hidden;gap:2px}
+.stack i{display:block;height:100%}
+#legend{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+#legend button{width:100%;display:grid;grid-template-columns:16px 1fr auto;gap:10px;align-items:center;text-align:left;background:none;border:1px solid transparent;border-radius:9px;padding:7px 8px;cursor:pointer}
+#legend button:hover{background:var(--surface-2)}
+#legend button[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
+.sw{width:14px;height:14px;border-radius:4px}
+.sw.dash{background:none!important;border:1.5px dashed var(--muted)}
+.lg-t{font-weight:600;font-size:13px;line-height:1.25}
+.lg-t small{display:block;font-weight:400;color:var(--muted);font-size:11.5px}
+.lg-n{font-variant-numeric:tabular-nums;font-weight:600}
+.hint{margin:0;font-size:12px;color:var(--muted)}
+
+#info{position:absolute;left:calc(16px + env(safe-area-inset-left,0px));bottom:calc(96px + env(safe-area-inset-bottom,0px));width:320px;padding:14px 16px;max-height:calc(100% - 230px);overflow:auto}
+#info .row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+#info .code{font-family:var(--f-mono);font-size:22px}
+#info .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--surface-2);margin-top:4px}
+#info dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:12px 0 0;font-size:13px}
+#info dt{color:var(--muted)}
+#info dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+#closeInfo{background:var(--surface-2);border:0;border-radius:8px;width:28px;height:28px;cursor:pointer;font-size:16px;line-height:1}
+.note{font-size:11.5px;color:var(--muted);margin:10px 0 0}
+
+#toolbar{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(36px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:6px;padding:6px;background:var(--bar);color:var(--bar-fg);border-radius:16px;box-shadow:var(--shadow);max-width:calc(100% - 32px);overflow-x:auto}
+#toolbar .seg{display:flex;background:rgba(0,0,0,.18);border-radius:11px;padding:3px}
+#toolbar button{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;background:none;border:0;color:var(--bar-fg);padding:8px 12px;border-radius:9px;cursor:pointer;font-size:13.5px}
+#toolbar button:hover{background:rgba(255,255,255,.08)}
+#toolbar button[aria-pressed="true"]{background:var(--bar-on);color:var(--bar-on-fg)}
+#toolbar .sep{width:1px;height:24px;background:rgba(255,255,255,.15);margin:0 4px;flex:none}
+#toolbar svg{width:17px;height:17px;flex:none}
+.hints{position:absolute;left:calc(16px + env(safe-area-inset-left,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));font-size:12px;color:var(--muted)}
+#tip{position:absolute;pointer-events:none;background:var(--bar);color:var(--bar-fg);font-size:12px;padding:5px 9px;border-radius:7px;white-space:nowrap;transform:translate(12px,-130%)}
+#tip b{font-family:var(--f-mono);font-weight:500;margin-right:6px}
+#err{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:var(--muted)}
+
+/* Residents / security monitor */
+:root{--ai:#13808a;--ai-soft:#dcf0f1;--rogue:#8b2c4a}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--ai:#5cc2c9;--ai-soft:#1f3a3c;--rogue:#d97a98}}
+:root[data-theme="dark"]{--ai:#5cc2c9;--ai-soft:#1f3a3c;--rogue:#d97a98}
+:root{--mt:#7a52b3;--mt-soft:#ece4f6;--cam:#3d4a52;--pet:#c93a77;--pet-soft:#fbe3ee}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--mt:#b89be6;--mt-soft:#352a47;--cam:#9aa7b2;--pet:#f08ab5;--pet-soft:#48263a}}
+:root[data-theme="dark"]{--mt:#b89be6;--mt-soft:#352a47;--cam:#9aa7b2;--pet:#f08ab5;--pet-soft:#48263a}
+:root{--sos:#cf3a2e;--sos-soft:#fbe4e1;--warn:#d9850f;--warn-soft:#fbeed8;--visit:#3f6fa8;--visit-soft:#e1eaf5;--in:#3f8a5a;--owner:#2c5a47;--owner-soft:#dce8e1;--resident:#3f6fa8;--resident-soft:#e1eaf5;--tenant:#9a5b2a;--tenant-soft:#f5e6d8}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--sos:#f0766a;--sos-soft:#4a2522;--warn:#f0b04e;--warn-soft:#45351c;--visit:#86aee0;--visit-soft:#253447;--in:#7fc79a;--owner:#8cc3a6;--owner-soft:#2b3d35;--resident:#86aee0;--resident-soft:#253447;--tenant:#e3a877;--tenant-soft:#46321f}}
+:root[data-theme="dark"]{--sos:#f0766a;--sos-soft:#4a2522;--warn:#f0b04e;--warn-soft:#45351c;--visit:#86aee0;--visit-soft:#253447;--in:#7fc79a;--owner:#8cc3a6;--owner-soft:#2b3d35;--resident:#86aee0;--resident-soft:#253447;--tenant:#e3a877;--tenant-soft:#46321f}
+.sec-h{font-size:12px;font-weight:600;color:var(--muted);margin-top:4px;padding-top:12px;border-top:1px solid var(--line)}
+.kpi.alert b{color:var(--sos)}
+.mk-legend{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted)}
+.mk-legend li{display:flex;align-items:center;gap:6px}
+.dot{width:12px;height:12px;border-radius:50%;flex:none;box-shadow:0 0 0 2px var(--surface)}
+.dot.sos{background:var(--sos)}.dot.warn{background:var(--warn)}.dot.visit{background:var(--visit)}
+#iExtra:empty{display:none}
+.alert-box{margin-top:12px;padding:9px 11px;border-radius:10px;background:var(--sos-soft);color:var(--sos);font-size:12.5px;display:flex;flex-direction:column;gap:2px}
+.alert-box b{font-size:13px}
+.sec{margin-top:14px}
+.sec-t{font-size:12px;font-weight:600;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:4px}
+.sec-t small{font-weight:400}
+.rows{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.rows li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-top:1px dashed var(--line);font-size:13px}
+.rows li:first-child{border-top:0}
+.rows li>span:first-child{min-width:0}
+.rows b{font-weight:600;display:block}
+.rows small{display:block;color:var(--muted);font-size:11.5px}
+.rows .empty{color:var(--muted);font-size:12.5px}
+.plate{font-family:var(--f-body);letter-spacing:.02em}
+.tag{flex:none;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.tag.owner{background:var(--owner-soft);color:var(--owner)}
+.tag.resident{background:var(--resident-soft);color:var(--resident)}
+.tag.tenant{background:var(--tenant-soft);color:var(--tenant)}
+.tag.in{background:var(--owner-soft);color:var(--in)}
+.tag.out{background:var(--surface-2);color:var(--muted)}
+.tag.visit{background:var(--visit-soft);color:var(--visit)}
+.tag.warn{background:var(--warn-soft);color:var(--warn)}
+.tag.sos,.tag.new{background:var(--sos-soft);color:var(--sos)}
+.tag.ack{background:var(--warn-soft);color:var(--warn)}
+
+#toolbar .badge{min-width:18px;height:18px;border-radius:9px;background:var(--sos);color:#fff;font-size:11px;font-weight:700;display:inline-grid;place-items:center;padding:0 5px;margin-left:-2px}
+#toolbar .badge[hidden]{display:none}
+
+#monitor{position:absolute;top:calc(16px + env(safe-area-inset-top,0px));right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(96px + env(safe-area-inset-bottom,0px));width:380px;display:flex;flex-direction:column;overflow:hidden;transform:translateX(calc(100% + 40px));transition:transform .28s ease;visibility:hidden}
+#app.mon-open #monitor{transform:none;visibility:visible}
+#app.mon-open #panel{visibility:hidden}
+@media (prefers-reduced-motion: reduce){#monitor{transition:none}}
+.mon-head{display:flex;justify-content:space-between;align-items:flex-start;padding:14px 16px 10px}
+.mon-head h2{font-size:17px;margin:2px 0 0}
+.live{display:inline-flex;align-items:center;gap:6px}
+.live::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--sos);animation:blink 1.4s infinite}
+@keyframes blink{50%{opacity:.25}}
+.icon-btn{background:var(--surface-2);border:0;border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:17px;line-height:1;flex:none}
+.tabs{display:flex;gap:4px;margin:0 12px;padding:3px;background:var(--surface-2);border-radius:11px}
+.tabs button{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;background:none;border:0;border-radius:8px;padding:7px 6px;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.cnt{min-width:18px;height:18px;border-radius:9px;font-size:11px;display:inline-grid;place-items:center;padding:0 5px;background:var(--line);color:var(--fg)}
+.cnt.sos{background:var(--sos);color:#fff}.cnt.warn{background:var(--warn);color:#fff}.cnt.visit{background:var(--visit);color:#fff}
+.mon-desc{margin:10px 16px 0;font-size:12px;color:var(--muted)}
+.mon-tools{padding:10px 12px 0;display:flex;flex-direction:column;gap:8px}
+.mon-tools[hidden]{display:none}
+.mon-tools input{font:inherit;width:100%;padding:8px 11px;border:1px solid var(--line);border-radius:9px;background:var(--surface-2);color:var(--fg)}
+.chips{display:flex;gap:5px;flex-wrap:wrap}
+.chips button{background:var(--surface-2);border:1px solid transparent;border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer}
+.chips button[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--fg)}
+.mon-list{flex:1;overflow:auto;padding:10px 12px 12px;display:flex;flex-direction:column;gap:8px}
+.item{border:1px solid var(--line);border-left:4px solid var(--line);border-radius:11px;padding:10px 11px;background:var(--surface);cursor:pointer}
+.item:hover{background:var(--surface-2)}
+.item.sos{border-left-color:var(--sos)}.item.sos.new{background:var(--sos-soft)}
+.item.warn{border-left-color:var(--warn)}.item.visit{border-left-color:var(--visit)}
+.item-top{display:flex;gap:10px;align-items:flex-start}
+.ic{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;flex:none;color:#fff}
+.ic svg{width:18px;height:18px}
+.ic.sos{background:var(--sos)}.ic.warn{background:var(--warn)}.ic.visit{background:var(--visit)}
+.item-main{flex:1;min-width:0}
+.item-t{font-size:13.5px;font-weight:600}
+.item-s{font-size:12px;color:var(--muted);margin-top:1px}
+.item-s b{color:var(--fg);font-weight:600}
+.muted{color:var(--muted);font-weight:400;font-size:12px}
+.time{font-size:12px;font-variant-numeric:tabular-nums;color:var(--muted);white-space:nowrap}
+.time.over{color:var(--warn);font-weight:700}
+.item-note{font-size:12px;color:var(--warn);margin:6px 0 0 42px}
+.item-act{display:flex;gap:6px;align-items:center;margin:8px 0 0 42px}
+.item-act button{border:0;border-radius:8px;padding:5px 11px;font-size:12px;font-weight:600;cursor:pointer;background:var(--bar);color:var(--bar-fg)}
+.item-act button.ghost{background:var(--surface-2);color:var(--fg)}
+.item-act .tag{margin-right:auto}
+.empty-st{text-align:center;color:var(--muted);font-size:13px;padding:30px 10px}
+.mon-foot{border-top:1px solid var(--line);padding:10px 12px;display:flex;align-items:center;gap:10px}
+.mon-foot button{border:1px dashed var(--muted);background:none;border-radius:9px;padding:6px 10px;font-size:12px;cursor:pointer;flex:none}
+.mon-foot span{font-size:11.5px;color:var(--muted)}
+#toast{position:absolute;top:calc(16px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);background:var(--bar);color:var(--bar-fg);padding:9px 14px;border-radius:10px;font-size:13px;box-shadow:var(--shadow);max-width:calc(100% - 32px)}
+#toast.sos{background:var(--sos);color:#fff}
+#toast.pet{background:var(--pet);color:#fff}
+.tabs{display:flex;flex-wrap:wrap}
+.tabs button{flex:1 1 auto}
+.tabs .cnt.cold{background:var(--line);color:var(--fg)}
+.cnt.tl{background:var(--fg);color:var(--surface)}.cnt.ai{background:var(--ai);color:#fff}.cnt.lock{background:var(--sos);color:#fff}.cnt.rogue{background:var(--rogue);color:#fff}.cnt.sen{background:var(--warn);color:#fff}
+.dot.ai{background:var(--ai)}.dot.rogue{background:var(--rogue)}.dot.sen{background:linear-gradient(90deg,var(--in) 0 33%,var(--warn) 33% 66%,var(--sos) 66%)}
+.ic.ai{background:var(--ai)}.ic.rogue{background:var(--rogue)}.ic.lockc{background:var(--surface-2);color:var(--fg)}
+.ic.sen.ok{background:var(--in)}.ic.sen.warn{background:var(--warn)}.ic.sen.crit{background:var(--sos)}
+.item.ai{border-left-color:var(--ai)}.item.ai.new{background:var(--ai-soft)}.item.ai.closed{opacity:.65}
+.item.rogue{border-left-color:var(--rogue)}.item.gate{border-left-color:var(--sos);background:var(--sos-soft)}.item.lockv{border-left-color:var(--muted)}
+.item.sen.ok{border-left-color:var(--in)}.item.sen.warn{border-left-color:var(--warn)}.item.sen.crit{border-left-color:var(--sos);background:var(--sos-soft)}
+.item-note.crit{color:var(--sos)}.ai-t{color:var(--ai)}
+.gate-card{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:11px;background:var(--surface-2)}
+.gate-card b{display:block;font-size:13.5px}.gate-card small{font-size:12px;color:var(--muted)}
+.gate-card.locked{background:var(--sos-soft)}.gate-card.locked small{color:var(--sos);font-weight:600}
+.sen-val{text-align:right;flex:none}.sen-val b{display:block;font-size:22px;line-height:1;font-variant-numeric:tabular-nums}.sen-val small{font-size:11px;color:var(--muted)}
+.sen-row{display:flex;align-items:center;gap:10px;margin:8px 0 0 42px}
+.spark{flex:1;height:28px}.spark polyline{fill:none;stroke:var(--muted);stroke-width:1.5;vector-effect:non-scaling-stroke}
+.item.sen.warn .spark polyline{stroke:var(--warn)}.item.sen.crit .spark polyline{stroke:var(--sos)}
+.tl-chips{margin-bottom:2px}
+.tl-day{font-size:11.5px;font-weight:600;color:var(--muted);margin:6px 2px 0}
+.item.tl{padding:8px 10px;border-left-width:3px}.item.tl.crit{border-left-color:var(--sos)}.item.tl.warn{border-left-color:var(--warn)}.item.tl.info{border-left-color:var(--line)}
+.tl-time{font-family:var(--f-mono);font-size:12px;color:var(--muted);width:38px;flex:none;padding-top:7px}
+.ic.tlic{width:28px;height:28px;background:var(--surface-2);color:var(--fg)}.ic.tlic svg{width:16px;height:16px}
+.ic.tlic.crit{background:var(--sos);color:#fff}.ic.tlic.warn{background:var(--warn);color:#fff}
+.item.tl .item-t{font-weight:500;font-size:13px}
+.v-side{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none}
+.lockbtn{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:2px 8px;font-size:11px;font-weight:600;cursor:pointer;color:var(--muted)}
+.lockbtn svg{width:12px;height:12px}
+.lockbtn[aria-pressed="true"]{background:var(--sos);border-color:var(--sos);color:#fff}
+.osd.br{bottom:10px;right:10px;text-align:right;line-height:1.5}
+#ccAI{background:rgba(19,128,138,.85);font-family:var(--f-body);font-weight:600}
+.wx{display:flex;flex-direction:column;gap:8px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.wx-main{display:flex;align-items:center;gap:10px}
+.wx-main svg{width:30px;height:30px;color:var(--warn);flex:none}
+.wx-main>b{font-size:28px;font-variant-numeric:tabular-nums;line-height:1}
+.wx-main span b{display:block;font-size:13px}.wx-main span small{font-size:11.5px;color:var(--muted)}
+.wx-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.wx-grid div{background:var(--surface-2);border-radius:8px;padding:5px 7px}
+.wx-grid small{display:block;font-size:10.5px;white-space:nowrap;color:var(--muted)}.wx-grid b{font-size:13px;font-variant-numeric:tabular-nums}
+.warn-t{color:var(--warn)}
+#settings{position:absolute;left:50%;top:50%;transform:translate(-50%,-52%);width:min(560px,calc(100% - 32px));max-height:calc(100% - 150px);display:flex;flex-direction:column;z-index:6}
+.set-desc{margin:0 14px 6px;font-size:12px;color:var(--muted)}
+.set-body{overflow:auto;padding:0 14px;display:grid;grid-template-columns:1fr 1fr;gap:4px 14px}
+.set-body fieldset{border:0;margin:0;padding:6px 0}
+.set-body legend{font-size:11.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:0 0 4px}
+.sw-row{display:flex;align-items:center;gap:10px;padding:7px 4px;border-radius:9px;cursor:pointer;position:relative}
+.sw-row:hover{background:var(--surface-2)}
+.sw-row>span{flex:1;min-width:0}.sw-row b{display:block;font-size:13px;font-weight:600}.sw-row small{display:block;font-size:11.5px;color:var(--muted);line-height:1.35}
+.sw-row.dim b{color:var(--muted)}
+.sw-row input{position:absolute;opacity:0;pointer-events:none}
+.sw-ui{width:36px;height:20px;border-radius:10px;background:var(--line);flex:none;position:relative;transition:background .15s}
+.sw-ui::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+.sw-row input:checked+.sw-ui{background:var(--accent)}
+.sw-row input:checked+.sw-ui::after{transform:translateX(16px)}
+.sw-row input:focus-visible+.sw-ui{outline:2px solid var(--accent);outline-offset:2px}
+.set-foot{display:flex;gap:8px;align-items:center;padding:12px 14px;border-top:1px solid var(--line);margin-top:6px}
+.set-foot button{border:0;background:var(--surface-2);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px}
+.set-foot span{margin-left:auto;font-size:11.5px;color:var(--muted)}
+.dot.mt{background:var(--mt)}.dot.cam{background:var(--cam)}.dot.pet{background:var(--pet)}
+.cnt.mt{background:var(--mt);color:#fff}.cnt.cam{background:var(--cam);color:var(--surface)}.cnt.pet{background:var(--pet);color:#fff}
+.alert-box.pet{background:var(--pet-soft);color:var(--pet)}
+.item.mt{border-left-color:var(--mt)}.item.mt.late{border-left-color:var(--sos)}.item.mt.done{opacity:.7}
+.item.cam{border-left-color:var(--cam)}.item.cam.off{border-left-color:var(--sos)}
+.item.pet{border-left-color:var(--pet);background:var(--pet-soft);cursor:default}
+.item.flash{animation:flash 1.6s}
+@keyframes flash{30%{box-shadow:0 0 0 3px var(--mt)}}
+.ic.mt{background:var(--mt)}.ic.cam{background:var(--cam);color:var(--surface)}.ic.pet{background:var(--pet)}
+.tag.wip{background:var(--mt-soft);color:var(--mt)}.tag.late{background:var(--sos-soft);color:var(--sos)}
+.tag.plan{background:var(--surface-2);color:var(--muted)}.tag.done{background:var(--owner-soft);color:var(--in)}
+.late-t{color:var(--sos)}
+.pet-t{color:var(--pet)}
+.mt-body{margin:8px 0 0 42px;display:flex;flex-direction:column;gap:4px}
+.prog{height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden}
+.prog i{display:block;height:100%;background:var(--mt);border-radius:3px}
+.item.late .prog i{background:var(--sos)}.item.done .prog i{background:var(--in)}
+.mt-dl{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:4px 0 2px}
+.mt-dl dt{font-size:11px;color:var(--muted)}.mt-dl dd{margin:0;font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums}
+.pet-last{margin:10px 0 0 42px;padding:8px 10px;border-radius:9px;background:var(--surface);display:flex;flex-direction:column;gap:2px;font-size:12.5px}
+.pet-last b{font-size:13.5px;color:var(--pet)}
+.item.pet .item-act{flex-wrap:wrap}
+.trail-h{margin:6px 4px 0}
+.trail{list-style:none;margin:0;padding:0 0 0 18px;position:relative}
+.trail::before{content:"";position:absolute;left:5px;top:8px;bottom:8px;border-left:2px dashed var(--pet)}
+.trail li{position:relative;padding:5px 0;font-size:13px}
+.trail li::before{content:"";position:absolute;left:-17px;top:10px;width:8px;height:8px;border-radius:50%;background:var(--surface);border:2px solid var(--pet)}
+.trail li.now::before{background:var(--pet)}
+.trail b{font-weight:600}.trail small{display:block;color:var(--muted);font-size:11.5px}
+#cctv{position:absolute;left:50%;top:50%;transform:translate(-50%,-55%);width:min(720px,calc(100% - 32px));overflow:hidden;z-index:5}
+.cc-head{display:flex;justify-content:space-between;align-items:flex-start;padding:12px 14px}
+.cc-head h3{margin:2px 0 0;font-size:16px}
+.feed{position:relative;aspect-ratio:16/9;background:#0d0f0e}
+#ccC{position:absolute;inset:0;width:100%;height:100%;display:block;filter:saturate(.55) contrast(1.08) brightness(.96)}
+.scan{position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.12) 0 1px,transparent 1px 3px)}
+.osd{position:absolute;color:#fff;font-family:var(--f-mono);font-size:12px;text-shadow:0 1px 2px #000;padding:2px 7px;background:rgba(0,0,0,.4);border-radius:4px}
+.osd.tl{top:10px;left:10px}.osd.tr{top:10px;right:10px}.osd.bl{bottom:10px;left:10px;display:flex;align-items:center;gap:6px}
+.rec{width:8px;height:8px;border-radius:50%;background:#ff3b30;animation:blink 1.2s infinite}
+.det{position:absolute;border:2px solid #ff4fa0;border-radius:3px;pointer-events:none}
+.det span{position:absolute;left:-2px;bottom:100%;background:#ff4fa0;color:#fff;font-size:11px;font-weight:600;padding:2px 6px;white-space:nowrap;border-radius:3px 3px 0 0}
+.nosig{position:absolute;inset:0;display:grid;place-content:center;text-align:center;color:#ddd;font-family:var(--f-mono);font-size:22px;letter-spacing:.2em;background:repeating-radial-gradient(circle at 30% 40%,#232625 0 1px,#121413 1px 3px)}
+.nosig small{display:block;font-family:var(--f-body);font-size:12px;letter-spacing:0;margin-top:6px;color:#aaa}
+.cc-foot{display:flex;gap:8px;padding:10px 12px;align-items:center}
+.cc-foot button{border:0;background:var(--surface-2);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px;flex:none}
+.cc-foot select{flex:1;min-width:0;font:inherit;font-size:13px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--fg)}
+
+@media (max-width:760px){
+  #monitor{top:auto;left:calc(16px + env(safe-area-inset-left,0px));right:calc(16px + env(safe-area-inset-right,0px));width:auto;height:64%;transform:translateY(calc(100% + 140px))}
+  #toast{top:auto;bottom:calc(150px + env(safe-area-inset-bottom,0px))}
+  .tabs button{font-size:12px;padding:6px 3px;gap:4px;min-width:0}
+  #cctv{top:calc(16px + env(safe-area-inset-top,0px));transform:translateX(-50%)}
+  .mt-body,.pet-last,.sen-row{margin-left:0}
+  .set-body{grid-template-columns:1fr}
+  #settings{top:calc(16px + env(safe-area-inset-top,0px));transform:translateX(-50%);max-height:calc(100% - 130px)}
+  .item-note,.item-act{margin-left:0}
+  .mon-foot span{display:none}
+  .brand{padding:10px 12px}
+  .brand h1{font-size:16px}
+  .brand .meta{display:none}
+  #panel{top:auto;bottom:calc(96px + env(safe-area-inset-bottom,0px));right:calc(16px + env(safe-area-inset-right,0px));left:calc(16px + env(safe-area-inset-left,0px));width:auto;max-height:55%}
+  #panelToggle{display:inline-block}
+  #panel.collapsed .panel-body{display:none}
+  #panel.collapsed .panel-head{border-bottom:0}
+  #info{left:calc(16px + env(safe-area-inset-left,0px));right:calc(16px + env(safe-area-inset-right,0px));width:auto;bottom:calc(150px + env(safe-area-inset-bottom,0px))}
+  #toolbar{bottom:calc(30px + env(safe-area-inset-bottom,0px));left:16px;right:16px;transform:none;max-width:none}
+  #toolbar .lbl{display:none}
+  .hints{display:none}
+}
+/* Sales lens (juristic revenue opportunities) */
+#sales{position:absolute;top:calc(16px + env(safe-area-inset-top,0px));right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(96px + env(safe-area-inset-bottom,0px));width:390px;display:flex;flex-direction:column;overflow:hidden;transform:translateX(calc(100% + 40px));transition:transform .28s ease;visibility:hidden}
+#app.sales-open #sales{transform:none;visibility:visible}
+#app.sales-open #panel{visibility:hidden}
+@media (prefers-reduced-motion: reduce){#sales{transition:none}}
+.sal-body{flex:1;overflow:auto;padding:2px 14px 14px;display:flex;flex-direction:column;gap:12px}
+.pipe{background:var(--accent-soft);border-radius:12px;padding:10px 12px;display:flex;justify-content:space-between;align-items:flex-end;gap:10px}
+.pipe b{display:block;font-size:26px;line-height:1.1;font-variant-numeric:tabular-nums}.pipe small{font-size:12px;color:var(--muted)}
+.pipe .hot{text-align:right}.pipe .hot b{font-size:20px;color:#d9480f}
+.heat{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11.5px;color:var(--muted)}.heat span{display:inline-flex;align-items:center;gap:5px}.heat i{width:12px;height:12px;border-radius:3px;display:inline-block}
+.offer-chips button{display:inline-flex;gap:6px;align-items:center}
+.offer-chips .n{font-variant-numeric:tabular-nums;color:var(--muted);font-weight:600}
+.soi{width:100%;border-collapse:collapse;font-size:12.5px}
+.soi th{font-weight:600;color:var(--muted);text-align:left;font-size:11.5px;padding:0 4px 4px}
+.soi td{padding:6px 4px;border-top:1px dashed var(--line);vertical-align:middle;font-variant-numeric:tabular-nums}
+.soi tr.r{cursor:pointer}.soi tr.r:hover td{background:var(--surface-2)}
+.soi td:last-child,.soi th:last-child{text-align:right}
+.bar{height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden;min-width:44px}.bar i{display:block;height:100%;border-radius:3px;background:var(--accent)}
+.bar.sec i{background:var(--ai)}
+.lead{border:1px solid var(--line);border-left:4px solid var(--line);border-radius:11px;padding:9px 11px;cursor:pointer;background:var(--surface)}
+.lead:hover{background:var(--surface-2)}.lead.hi{border-left-color:#d9480f}.lead.mid{border-left-color:#f08c00}.lead.lo{border-left-color:#e3c983}
+.lead-top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.lead-top b{font-family:var(--f-mono);font-weight:500;font-size:14px}.lead-top .v{font-weight:700;font-variant-numeric:tabular-nums}
+.lead small{display:block;color:var(--muted);font-size:11.5px;margin-top:1px}
+.otags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.tag.offer{background:var(--surface-2);color:var(--fg);font-weight:500}
+.tag.hot{background:#fde3d3;color:#b83c06}
+.score{display:inline-grid;place-items:center;min-width:34px;height:22px;border-radius:7px;font-size:12px;font-weight:700;color:#fff;padding:0 6px}
+.score.hi{background:#d9480f}.score.mid{background:#f08c00}.score.lo{background:#c9a94f}.score.no{background:var(--line);color:var(--muted)}
+.sal-foot{border-top:1px solid var(--line);padding:10px 12px;display:flex;align-items:center;gap:10px}
+.sal-foot button{border:0;background:var(--bar);color:var(--bar-fg);border-radius:9px;padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer;flex:none}
+.sal-foot span{font-size:11.5px;color:var(--muted);line-height:1.35}
+.offer-rows li>span:last-child{text-align:right;flex:none}
+.consent-no{font-size:11.5px;color:var(--warn);margin-top:6px}
+@media (max-width:760px){#sales{top:auto;left:calc(16px + env(safe-area-inset-left,0px));right:calc(16px + env(safe-area-inset-right,0px));width:auto;height:64%;transform:translateY(calc(100% + 140px))}}
+</style>
+
+<div id="app">
+  <canvas id="c" tabindex="0" aria-label="แผนที่ 3 มิติของหมู่บ้าน"></canvas>
+
+  <header class="brand card">
+    <div class="eyebrow">ผังโครงการ · ข้อมูลตัวอย่าง</div>
+    <h1>โครงการทดสอบ</h1>
+    <div class="meta">120 แปลง · 7 ซอย · ถนนเมนกว้าง 14 ม.</div>
+  </header>
+
+  <aside id="panel" class="card">
+    <div class="panel-head">
+      <h2>ภาพรวมโครงการ</h2>
+      <button id="panelToggle" aria-expanded="true" aria-controls="panelBody">ซ่อน</button>
+    </div>
+    <div class="panel-body" id="panelBody">
+      <div class="wx" data-f="weather">
+        <div class="wx-main"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4.5V3M3.8 6.3l-1-1M2.5 10.5H1M12.2 6.3l1-1M5.3 12.6A4 4 0 1 1 11.6 7.8"/><path d="M8.5 20h9a4 4 0 0 0 .4-8 5.5 5.5 0 0 0-10.6 1.2A3.4 3.4 0 0 0 8.5 20z"/></svg>
+          <b id="wxT">31°</b><span><b>มีเมฆบางส่วน</b><small id="wxFeel"></small></span></div>
+        <div class="wx-grid"><div><small>ความชื้น</small><b id="wxH"></b></div><div><small>โอกาสฝน</small><b id="wxR"></b></div><div><small>ลม กม./ชม.</small><b id="wxW"></b></div><div><small>PM2.5</small><b id="wxP"></b></div></div>
+      </div>
+      <div class="total"><span class="big" id="total">120</span><span>แปลงทั้งหมด</span></div>
+      <div class="kpis">
+        <div class="kpi"><b id="kTransferred">0</b><span>โอนแล้ว</span></div>
+        <div class="kpi"><b id="kBuilt">0</b><span>สร้างเสร็จพร้อมขาย</span></div>
+      </div>
+      <div class="stack" id="stack" aria-hidden="true"></div>
+      <ul id="legend"></ul>
+      <p class="hint">กดที่สถานะเพื่อไฮไลต์แปลงในผัง</p>
+      <div class="sec-h">ลูกบ้านและความปลอดภัย</div>
+      <div class="kpis">
+        <div class="kpi" data-f="residents"><b id="kPeople">0</b><span>ลูกบ้าน (คน)</span></div>
+        <div class="kpi" data-f="residents"><b id="kCars">0</b><span>รถลูกบ้านในโครงการ</span></div>
+        <div class="kpi" data-f="visitors"><b id="kVisit">0</b><span>รถผู้ติดต่อในโครงการ</span></div>
+        <div class="kpi alert" data-f="sos"><b id="kSos">0</b><span>บ้านขอความช่วยเหลือ</span></div>
+      </div>
+      <ul class="mk-legend">
+        <li data-f="sos"><span class="dot sos"></span>SOS ขอความช่วยเหลือ</li>
+        <li data-f="visitors"><span class="dot warn"></span>รถผู้ติดต่ออยู่เกินเวลา</li>
+        <li data-f="visitors"><span class="dot visit"></span>มีผู้ติดต่อ</li>
+        <li data-f="maint"><span class="dot mt"></span>งานซ่อมส่วนกลาง</li>
+        <li data-f="cctv"><span class="dot cam"></span>CCTV (กดดูภาพสด)</li>
+        <li data-f="pet"><span class="dot pet"></span>สัตว์หาย · จุดพบล่าสุด</li>
+        <li data-f="ai"><span class="dot ai"></span>AI ตรวจพบเหตุผิดปกติ</li>
+        <li data-f="rogue"><span class="dot rogue"></span>รถแปลกปลอม / จอดค้าง</li>
+        <li data-f="antitheft"><span class="dot sos"></span>ไม้กั้นล็อก (กันขโมย)</li>
+        <li data-f="sensors"><span class="dot sen"></span>เซ็นเซอร์ (เขียว/ส้ม/แดง)</li>
+      </ul>
+    </div>
+  </aside>
+
+  <section id="info" class="card" hidden aria-live="polite">
+    <div class="row">
+      <div>
+        <div class="code" id="iCode">A-01</div>
+        <div class="chip"><span class="sw" id="iSw"></span><span id="iStatus"></span></div>
+      </div>
+      <button id="closeInfo" aria-label="ปิดรายละเอียดแปลง">×</button>
+    </div>
+    <dl>
+      <dt>แบบบ้าน</dt><dd id="iType"></dd>
+      <dt>ขนาดที่ดิน</dt><dd id="iLand"></dd>
+      <dt>พื้นที่ใช้สอย</dt><dd id="iUse"></dd>
+      <dt>ซอย</dt><dd id="iLane"></dd>
+    </dl>
+    <div id="iExtra"></div>
+    <p class="note">ตัวเลขเป็นข้อมูลตัวอย่าง</p>
+  </section>
+
+  <nav id="toolbar" aria-label="เครื่องมือแผนที่">
+    <div class="seg" role="group" aria-label="มุมมอง">
+      <button id="b3d" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></svg><span>3D</span></button>
+      <button id="b2d" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg><span>ผัง 2D</span></button>
+    </div>
+    <div class="seg" role="group" aria-label="การลากเมาส์ซ้าย" id="dragSeg">
+      <button id="bPan" aria-pressed="true" title="ลากเพื่อเลื่อนผัง (คลิกขวาลาก = หมุน)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg><span class="lbl">เลื่อน</span></button>
+      <button id="bRot" aria-pressed="false" title="ลากเพื่อหมุน (คลิกขวาลาก = เลื่อน)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 12a8 4 0 1 0 8-4"/><path d="M12 5l2.5 3L12 11"/></svg><span class="lbl">หมุน</span></button>
+    </div>
+    <span class="sep"></span>
+    <button id="bLife" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="13" cy="4.5" r="1.8"/><path d="M10 21l2.5-6 2.5 2.5V21M9 11l3-3 3 2.5 3 1M12 8l.5 7"/></svg><span class="lbl">ชีวิตในโครงการ</span></button>
+    <button id="bNight" aria-pressed="false" title="สลับกลางวัน / กลางคืน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg><span class="lbl">กลางคืน</span></button>
+    <button id="bSpin" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v4h-4"/></svg><span class="lbl">หมุนรอบโครงการ</span></button>
+    <button id="bReset" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9V4h5M20 15v5h-5M4 4l6 6M20 20l-6-6"/></svg><span class="lbl">ดูทั้งโครงการ</span></button>
+    <span class="sep"></span>
+    <button id="bSales" data-f="sales" aria-pressed="false" aria-controls="sales"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg><span class="lbl">โอกาสขาย</span><span class="badge" id="salesBadge" hidden></span></button>
+    <button id="bMon" data-f="monitor" aria-pressed="false" aria-controls="monitor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4" stroke-linecap="round"/></svg><span class="lbl">Monitor</span><span class="badge" id="monBadge" hidden></span></button>
+    <button id="bSet" aria-label="ตั้งค่าฟีเจอร์สำหรับนำเสนอ" aria-controls="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span class="lbl">ตั้งค่า</span></button>
+  </nav>
+
+  <aside id="monitor" class="card" aria-label="Monitor" aria-hidden="true">
+    <div class="mon-head">
+      <div><div class="eyebrow live">ศูนย์เฝ้าระวัง · อัปเดตสด</div><h2>Monitor</h2></div>
+      <button id="monClose" class="icon-btn" aria-label="ปิด Monitor">×</button>
+    </div>
+    <div class="tabs" role="tablist" aria-label="ประเภทรายการ"></div>
+    <p class="mon-desc" id="monDesc"></p>
+    <div class="mon-tools" id="monTools" hidden>
+      <input id="vSearch" type="search" placeholder="ค้นหาทะเบียนรถ / เลขบ้าน / ชื่อ" aria-label="ค้นหารถผู้ติดต่อ">
+      <div class="chips" id="vChips"></div>
+    </div>
+    <div class="mon-list" id="monList" role="tabpanel"></div>
+    <div class="mon-foot"><button id="simBtn">+ จำลองเหตุการณ์</button><span>เกณฑ์ผิดปกติ: Taxi / ส่งอาหาร / ส่งพัสดุ อยู่เกิน 15 นาที</span></div>
+  </aside>
+
+  <aside id="sales" class="card" aria-label="โอกาสขาย" aria-hidden="true">
+    <div class="mon-head">
+      <div><div class="eyebrow">นิติบุคคล · เพิ่มรายได้ · ข้อมูลตัวอย่าง</div><h2>โอกาสขาย</h2></div>
+      <button id="salesClose" class="icon-btn" aria-label="ปิดโอกาสขาย">×</button>
+    </div>
+    <div class="sal-body" id="salesBody"></div>
+    <div class="sal-foot"><button id="salesCsv">ส่งออกรายชื่อ (CSV)</button><span>เสนอขายเฉพาะลูกบ้านที่ให้ความยินยอม (PDPA) · ราคาและตัวเลขเป็นข้อมูลตัวอย่าง</span></div>
+  </aside>
+
+  <section id="cctv" class="card" hidden role="dialog" aria-labelledby="ccTitle">
+    <div class="cc-head">
+      <div><div class="eyebrow live">CCTV ส่วนกลาง · ภาพสด</div><h3 id="ccTitle"></h3></div>
+      <button id="ccClose" class="icon-btn" aria-label="ปิดกล้อง">×</button>
+    </div>
+    <div class="feed">
+      <canvas id="ccC"></canvas><div class="scan"></div>
+      <div class="osd tl" id="ccId"></div><div class="osd tr" id="ccTime"></div><div class="osd bl"><span class="rec"></span>REC</div><div class="osd br ai-osd" id="ccAI" hidden></div>
+      <div class="det" id="ccDet" hidden><span></span></div>
+      <div class="nosig" id="ccNo" hidden>NO SIGNAL<small>กล้องออฟไลน์ · แจ้งช่างแล้ว</small></div>
+    </div>
+    <div class="cc-foot">
+      <button id="ccPrev" aria-label="กล้องก่อนหน้า">‹</button>
+      <select id="ccSel" aria-label="เลือกกล้อง"></select>
+      <button id="ccNext" aria-label="กล้องถัดไป">›</button>
+      <button id="ccMap">ดูบนผัง</button>
+    </div>
+  </section>
+  <section id="settings" class="card" hidden role="dialog" aria-labelledby="setTitle">
+    <div class="cc-head">
+      <div><div class="eyebrow">Prototype · โหมดนำเสนอ</div><h3 id="setTitle">เปิด/ปิดฟีเจอร์</h3></div>
+      <button id="setClose" class="icon-btn" aria-label="ปิดการตั้งค่า">×</button>
+    </div>
+    <p class="set-desc">ฟีเจอร์ที่ปิดจะถูกซ่อนทั้งหมด ทั้งหมุดบนผัง วัตถุ 3D แท็บใน Monitor การ์ดข้อมูล และเหตุการณ์ใน Timeline</p>
+    <div class="set-body" id="setBody"></div>
+    <div class="set-foot"><button id="setAll">เปิดทั้งหมด</button><button id="setNone">ปิดทั้งหมด</button><span>จำค่าไว้ในเบราว์เซอร์นี้</span></div>
+  </section>
+  <div id="toast" role="status" hidden></div>
+
+  <div class="hints" id="hints">ลากเพื่อหมุน · Scroll เพื่อซูม · คลิกบ้านเพื่อดูรายละเอียด</div>
+  <div id="tip" hidden></div>
+</div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as T from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
+window.THREE=Object.assign({},T,{OrbitControls,mergeGeometries});
+</script>
+<script type="module">
+(function(){
+if(!window.THREE||!THREE.OrbitControls||!THREE.mergeGeometries){document.getElementById('app').insertAdjacentHTML('beforeend','<div id="err">โหลดไลบรารี 3D ไม่สำเร็จ ลองรีเฟรชหน้านี้อีกครั้ง</div>');return;}
+const $=s=>document.querySelector(s);
+const V3=THREE.Vector3;
+const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function mulberry(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+const rand=mulberry(20261026);
+const pick=a=>a[Math.floor(rand()*a.length)];
+
+/* ---------- Status model (sample data) ---------- */
+const STATUS={
+  transferred:{label:'โอนแล้ว',sub:'ส่งมอบให้ลูกค้าแล้ว',color:'#4f7d5d',count:77},
+  stock:{label:'Stock',sub:'สร้างเสร็จ ผ่าน QC',color:'#4b76a8',count:16},
+  wip:{label:'WIP',sub:'กำลังก่อสร้าง',color:'#c4714f',count:12},
+  backlog:{label:'Backlog',sub:'ขายแล้ว รอโอน',color:'#d2a33b',count:7},
+  vacant:{label:'ยังไม่ขึ้นงาน',sub:'แปลงว่าง',color:'#b8ad93',count:8},
+};
+const ORDER=['transferred','stock','wip','backlog','vacant'];
+
+/* ---------- Renderer / scene ---------- */
+const canvas=$('#c');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;   // filmic tone curve: richer colours, softer highlights
+const scene=new THREE.Scene();
+const cssVar=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const backdrop=new THREE.Mesh(new THREE.PlaneGeometry(1800,1800),new THREE.MeshBasicMaterial({toneMapped:false,depthWrite:false}));
+backdrop.rotation.x=-Math.PI/2;backdrop.position.set(-20,-0.75,40);backdrop.renderOrder=-2;scene.add(backdrop);
+const dayBg=new THREE.Color();
+function applyTheme(){
+  const bg=cssVar('--scene')||'#e9e8e1',col=new THREE.Color(bg);scene.background=col;dayBg.copy(col);
+  const dark=col.getHSL({}).l<0.35,c=document.createElement('canvas');c.width=c.height=512;const x=c.getContext('2d');
+  const gr=x.createRadialGradient(256,256,20,256,256,256);
+  gr.addColorStop(0,dark?'#222b26':'#dfe3d2');gr.addColorStop(0.45,dark?'#1d2421':'#e4e5da');gr.addColorStop(1,bg);
+  x.fillStyle=gr;x.fillRect(0,0,512,512);
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;
+  if(backdrop.material.map)backdrop.material.map.dispose();backdrop.material.map=t;backdrop.material.needsUpdate=true;
+}
+applyTheme();
+try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',applyTheme);}catch(e){}
+new MutationObserver(applyTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+
+const hemi=new THREE.HemisphereLight(0xeef3ff,0x9a8d72,0.95);scene.add(hemi);   // cool sky fill + warm ground bounce
+const sun=new THREE.DirectionalLight(0xffe9cc,3.6);
+sun.position.set(-140,230,110);sun.castShadow=true;
+const sc=sun.shadow.camera;sc.left=-240;sc.right=240;sc.top=240;sc.bottom=-240;sc.near=20;sc.far=700;
+const sm=Math.min(4096,renderer.capabilities.maxTextureSize||2048);sun.shadow.mapSize.set(sm,sm);sun.shadow.bias=-0.0012;sun.shadow.normalBias=0.5;sun.shadow.radius=3;
+scene.add(sun);scene.add(sun.target);
+
+const L=(c,o)=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:0.9,metalness:0},o||{}));
+const UNLIT=o=>new THREE.MeshBasicMaterial(Object.assign({toneMapped:false},o));
+const M={
+  ground:L('#d3c9b1'),plot:L('#e6dcc6'),plotHi:L('#f6eed8'),road:L('#8d9490',{roughness:0.95}),plaza:L('#cfccc3'),line:L('#f4f4ef'),
+  verge:L('#a3bb84'),park:L('#97b97a'),drive:L('#c9cbc6'),wall:L('#f5f1e8'),wallWip:L('#cfc7ba'),glass:L('#3f4f58',{roughness:0.18,metalness:0.35}),
+  trunk:L('#7b6a55'),crown:L('#5f8b5a'),dim:L('#d6d3ca'),black:L('#2a2d2c'),lamp:UNLIT({color:'#fff6d8'}),
+  pin:L('#22302a'),
+  paver:L('#d9d5cb'),curb:L('#eeebe3'),lawn:L('#9cbf7d'),stone:L('#d8cdb8'),wood:L('#9a6b45',{roughness:0.75}),
+  deck:L('#b88b5f',{roughness:0.8}),roofSlab:L('#ebe7dd'),white:L('#f7f5ef'),court:L('#3f8088'),
+  water:L('#3aa6c2',{roughness:0.08,metalness:0.1,emissive:'#0a3a48'}),rim:L('#cdbf9c'),asphalt:L('#959b97',{roughness:0.95}),
+};
+const statusMat={};ORDER.forEach(k=>statusMat[k]=L(STATUS[k].color));
+const carGlass=L('#3f4f58',{roughness:0.18,metalness:0.35});
+const sosMat=new THREE.MeshStandardMaterial({color:'#d23b2f',emissive:'#3a0805',roughness:0.8});
+
+const boxGeo=new THREE.BoxGeometry(1,1,1);boxGeo.translate(0,0.5,0);
+function box(parent,mat,x,y,z,sx,sy,sz,cast){const m=new THREE.Mesh(boxGeo,mat);m.position.set(x,y,z);m.scale.set(sx,sy,sz);m.castShadow=!!cast;m.receiveShadow=true;parent.add(m);return m;}
+function strip(parent,mat,x1,z1,x2,z2,w,y,h){const dx=x2-x1,dz=z2-z1,len=Math.hypot(dx,dz);const m=new THREE.Mesh(boxGeo,mat);m.position.set((x1+x2)/2,y,(z1+z2)/2);m.scale.set(len,h,w);m.rotation.y=-Math.atan2(dz,dx);m.receiveShadow=true;parent.add(m);return m;}
+// canvas text → texture (redrawn once the Thai web font has loaded)
+const textJobs=[];
+function textTex(draw,w,h){
+  const c=document.createElement('canvas');c.width=w;c.height=h;const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;
+  const job=()=>{const x=c.getContext('2d');x.clearRect(0,0,w,h);draw(x,w,h);t.needsUpdate=true;};job();textJobs.push(job);return t;
+}
+const TFONT='"IBM Plex Sans Thai","Noto Sans Thai",system-ui,sans-serif';
+try{document.fonts.load('700 64px "IBM Plex Sans Thai"').then(()=>textJobs.forEach(j=>j()));}catch(e){}
+// soft contact shadow (fake ambient occlusion) under houses, trees and buildings
+const aoTex=(()=>{const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d');const g=x.createRadialGradient(64,64,8,64,64,64);
+  g.addColorStop(0,'rgba(0,0,0,0.55)');g.addColorStop(0.55,'rgba(0,0,0,0.28)');g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.fillRect(0,0,128,128);return new THREE.CanvasTexture(c);})();
+const aoMat=new THREE.MeshBasicMaterial({map:aoTex,transparent:true,depthWrite:false,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
+const aoGeo=new THREE.PlaneGeometry(1,1);aoGeo.rotateX(-Math.PI/2);
+const aoList=[];   // {obj (parent), x,y,z, sx,sz} — baked into one InstancedMesh once the scene is built
+function ao(parent,x,y,z,sx,sz){aoList.push({parent,x,y,z,sx,sz});}
+const roofGeo=new THREE.ConeGeometry(Math.SQRT1_2,1,4,1);roofGeo.rotateY(Math.PI/4);roofGeo.translate(0,0.5,0);
+
+/* ---------- Site layout (local frames per wing) ---------- */
+const wings=[
+  {f:{x:-55,z:8,a:0.32},dir:-1,lanes:[-62,-22,18,58],letters:'ABCD'},
+  {f:{x:55,z:-14,a:0.32},dir:1,lanes:[-52,-12,28],letters:'EFG'},
+];
+function wp(f,x,z){const c=Math.cos(f.a),s=Math.sin(f.a);return new V3(f.x+x*c-z*s,0,f.z+x*s+z*c);}
+const PER=110;           // perimeter road distance from spine
+const trees=[];          // world positions for instanced trees
+const parkKeys=new Set(['0-0--1-0','0-3-1-0','0-1-1-8','1-0--1-0','1-2-1-0','1-1--1-8']);
+const slots=[];
+const lampPts=[];       // street lamp positions (world)
+const siteGround=[];   // ground slabs that define the site footprint (used to frame the camera)
+const parks={};          // park key -> {pos, letter}
+
+wings.forEach((w,wi)=>{
+  const g=new THREE.Group();g.position.set(w.f.x,0,w.f.z);g.rotation.y=-w.f.a;scene.add(g);w.group=g;
+  const d=w.dir,zmin=w.lanes[0]-26,zmax=w.lanes[w.lanes.length-1]+26;
+  w.zmin=zmin;w.zmax=zmax;
+  const xa=d<0?-124:-10,xb=d<0?10:124;
+  siteGround.push(box(g,M.ground,(xa+xb)/2,-0.6,(zmin+zmax)/2,xb-xa,0.6,zmax-zmin));
+  // green verges on the outer edges
+  box(g,M.verge,d*119,0,(zmin+zmax)/2,10,0.06,zmax-zmin);
+  box(g,M.verge,(xa+xb)/2,0,zmin+3,xb-xa,0.06,6);
+  box(g,M.verge,(xa+xb)/2,0,zmax-3,xb-xa,0.06,6);
+  for(let z=zmin+6;z<zmax-4;z+=8)trees.push(wp(w.f,d*119,z));
+  for(let x=d*12;Math.abs(x)<116;x+=d*9){trees.push(wp(w.f,x,zmin+3));trees.push(wp(w.f,x,zmax-3));}
+  // roads
+  strip(g,M.road,0,zmin+4,0,zmax-4,10,0,0.14);
+  w.lanes.forEach(z=>strip(g,M.road,0,z,d*114,z,8,0,0.14));
+  strip(g,M.road,d*PER,w.lanes[0]-4,d*PER,w.lanes[w.lanes.length-1]+4,8,0,0.14);
+  // footpaths between road edge and plots, raised curbs, zebra crossings and painted soi names
+  const curb=(x1,z1,x2,z2)=>strip(g,M.curb,x1,z1,x2,z2,0.28,0,0.2);
+  const L0=w.lanes[0],Ln=w.lanes[w.lanes.length-1];
+  w.lanes.forEach((z,li)=>{
+    [-1,1].forEach(s=>{strip(g,M.paver,d*5,z+s*4.75,d*106,z+s*4.75,1.5,0,0.1);curb(d*5,z+s*4.1,d*106,z+s*4.1);});
+    for(let k=0;k<7;k++)box(g,M.line,d*7.6,0.14,z-3+k,2.2,0.02,0.5);
+    const lab=new THREE.Mesh(new THREE.PlaneGeometry(6.4,2.6),new THREE.MeshBasicMaterial({map:textTex((x,W,H)=>{x.fillStyle='#fff';x.font=`700 150px ${TFONT}`;x.textAlign='center';x.textBaseline='middle';x.fillText('ซอย '+w.letters[li],W/2,H/2+8);},512,208),transparent:true,depthWrite:false,opacity:0.92,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-1}));
+    lab.geometry.rotateX(-Math.PI/2);lab.rotation.y=-d*Math.PI/2;lab.position.set(d*13.5,0.15,z);g.add(lab);
+  });
+  w.lanes.forEach(z=>{for(let j=0;j<5;j++)lampPts.push(wp(w.f,d*(14+20*j),z+(j%2?1:-1)*5.05));});
+  for(let z=zmin+10;z<zmax-8;z+=24)if(Math.abs(z)>9)lampPts.push(wp(w.f,-d*6.2,z));
+  // spine curbs: lane side has gaps at each junction, back side has one gap for the link road to the plaza
+  const stops=[zmin+4,...w.lanes.flatMap(z=>[z-4,z+4]),zmax-4];
+  for(let i=0;i<stops.length;i+=2)curb(d*5.1,stops[i],d*5.1,stops[i+1]);
+  curb(-d*5.1,zmin+4,-d*5.1,-7);curb(-d*5.1,7,-d*5.1,zmax-4);
+  // perimeter road: inner curb between lanes, outer curb continuous
+  for(let i=0;i<w.lanes.length-1;i++)curb(d*(PER-4.1),w.lanes[i]+4,d*(PER-4.1),w.lanes[i+1]-4);
+  curb(d*(PER+4.1),L0-4,d*(PER+4.1),Ln+4);
+  // boundary wall on the outer side and the north edge, with pilasters
+  const wallM=M.stone,wl=(x1,z1,x2,z2)=>{const m=strip(g,wallM,x1,z1,x2,z2,0.4,0,2.2);m.castShadow=true;const n=Math.max(1,Math.round(Math.hypot(x2-x1,z2-z1)/10));for(let i=0;i<=n;i++){const p=box(g,M.white,x1+(x2-x1)*i/n,0,z1+(z2-z1)*i/n,0.8,2.6,0.8,true);}};
+  wl(d*123.6,zmin+0.4,d*123.6,zmax-0.4);wl(xa+0.4,zmin+0.4,xb-0.4,zmin+0.4);
+  // plot slots
+  w.lanes.forEach((z,li)=>{
+    [-1,1].forEach(s=>{
+      for(let k=0;k<9;k++){
+        const lx=d*(14+10*k),lz=z+s*12.5,key=`${wi}-${li}-${s}-${k}`;
+        if(parkKeys.has(key)){parks[key]={pos:wp(w.f,lx,lz),letter:w.letters[li]};box(g,M.park,lx,0,lz,9.2,0.1,14);[[-2.2,-3],[2.4,1],[-1,4.5]].forEach(([ox,oz])=>trees.push(wp(w.f,lx+ox,lz+oz*s)));continue;}
+        slots.push({wi,li,s,k,lx,lz,lane:z,letter:w.letters[li]});
+      }
+    });
+  });
+});
+
+/* central plaza + entry boulevard (world frame) */
+const PL={x:0,z:-4,w:60,h:50};
+siteGround.push(box(scene,M.ground,0,-0.6,PL.z,PL.w+16,0.6,PL.h+16));
+box(scene,M.plaza,0,0,PL.z,PL.w,0.1,PL.h);
+/* ring road around the clubhouse island (cars already loop on this square) */
+[[-20,-20,20,-20],[20,-20,20,12],[20,12,-20,12],[-20,12,-20,-20]].forEach(([a,b,c,e])=>strip(scene,M.road,a+(a===c?0:Math.sign(c-a)*-4),b+(b===e?0:Math.sign(e-b)*-4),c+(a===c?0:Math.sign(c-a)*4),e+(b===e?0:Math.sign(e-b)*4),8,0,0.14));
+strip(scene,M.road,-27,2,-20,2,10,0,0.14);strip(scene,M.road,27,-10,20,-10,10,0,0.14);strip(scene,M.road,0,20,0,12,14,0,0.14);
+for(let k=0;k<9;k++)box(scene,M.line,-6+k*1.5,0.14,17.6,0.6,0.02,2.4);   // zebra crossing at the boulevard mouth
+/* island: lawn, clubhouse, pool deck, sala */
+const club=new THREE.Group();scene.add(club);
+box(club,M.curb,0,0,-4,32.8,0.24,24.8);box(club,M.lawn,0,0,-4,32,0.3,24);
+{ // clubhouse: glass ground floor facing the pool, timber-clad upper box (fitness), deep roof overhangs
+  const cx=-7,cz=-11.5;
+  box(club,M.white,cx,0.3,cz-1.5,16,4.2,5,true);
+  box(club,M.glass,cx+1,0.3,cz+1.6,13,3.6,1.2,true);
+  [-7.6,-2,3.6,7.6].forEach(x=>box(club,M.white,cx+x,0.3,cz+2,0.6,4.2,0.6,true));
+  box(club,M.roofSlab,cx,4.5,cz,17.6,0.45,9.2,true);
+  box(club,M.wood,cx-3.5,4.95,cz-1,9,3.3,6,true);box(club,M.glass,cx-3.5,5.6,cz+2.03,7.6,1.8,0.08);
+  box(club,M.roofSlab,cx-3.5,8.25,cz-1,10.2,0.35,7.2,true);
+  box(club,M.wood,cx+6,0.3,cz-4.2,3,4.2,0.4,true);   // timber feature fin
+  ao(club,cx,0.31,cz,21,13);
+  const sign=new THREE.Mesh(new THREE.PlaneGeometry(6,0.9),new THREE.MeshBasicMaterial({map:textTex((x,W,H)=>{x.fillStyle='#2c3a33';x.font=`600 64px ${TFONT}`;x.textAlign='center';x.textBaseline='middle';x.fillText('CLUBHOUSE',W/2,H/2+4);},512,80),transparent:true,toneMapped:false}));
+  sign.position.set(cx+3,4.72,cz+4.62);club.add(sign);
+}
+{ // pool deck + pool + loungers & umbrellas
+  box(club,M.deck,-3,0.3,0.25,24,0.12,13.5);
+  box(club,M.rim,-4,0.3,-1,19.4,0.12,8.4);
+  const water=box(club,M.water,-4,0.3,-1,18,0.15,7);water.castShadow=false;
+  box(club,M.rim,6.8,0.3,-1,3.6,0.16,3.6);box(club,M.water,6.8,0.3,-1,2.8,0.17,2.8);   // kids pool
+  for(let i=0;i<5;i++){const x=-12.5+i*3.6;box(club,M.white,x,0.42,5.2,1,0.35,2.2,true);box(club,M.white,x,0.6,4.3,1,0.5,0.5,true);
+    if(i%2===0){box(club,M.wood,x+1.8,0.42,5.4,0.12,2.6,0.12,true);const u=new THREE.Mesh(new THREE.ConeGeometry(1.7,0.7,8),L('#efe6d2'));u.position.set(x+1.8,3.25,5.4);u.castShadow=true;club.add(u);}}
+}
+{ // sala (open pavilion) on the east lawn — site of maintenance job MT-024
+  const sx=10.5,sz=-10;box(club,M.deck,sx,0.3,sz,6.4,0.35,6.4,true);
+  [[-2.7,-2.7],[2.7,-2.7],[-2.7,2.7],[2.7,2.7]].forEach(([x,z])=>box(club,M.wood,sx+x,0.65,sz+z,0.3,2.8,0.3,true));
+  const r=new THREE.Mesh(roofGeo,L('#6f4f37'));r.position.set(sx,3.4,sz);r.scale.set(8,2.2,8);r.castShadow=true;club.add(r);
+  box(club,M.wood,sx,0.65,sz,2.2,0.75,1.2,true);ao(club,sx,0.31,sz,9,9);
+}
+[[13.5,-15],[14.5,1.5],[5,-14.5],[14.5,6.5]].forEach(([x,z])=>trees.push(new V3(x,0.3,z)));
+[[-27,-24],[-27,-12],[27,4],[27,16],[-12,-26.5],[0,-26.5],[12,-26.5],[-14,18.5],[14,18.5],[-24,18.5],[24,18.5]].forEach(([x,z])=>trees.push(new V3(x,0.1,z)));
+const S0w=wp(wings[0].f,0,0),S0e=wp(wings[1].f,0,0);
+strip(scene,M.road,S0w.x,S0w.z,-PL.w/2+4,2,10,0,0.14);
+strip(scene,M.road,S0e.x,S0e.z,PL.w/2-4,-10,10,0,0.14);
+const EA=new V3(-30,0,160),EB=new V3(0,0,PL.z+PL.h/2-2);
+{
+  const dx=EA.x-EB.x,dz=EA.z-EB.z,len=Math.hypot(dx,dz),ux=dx/len,uz=dz/len,nx=uz,nz=-ux;
+  const gnd=strip(scene,M.ground,EB.x,EB.z,EA.x,EA.z,34,-0.6,0.6);siteGround.push(gnd);
+  strip(scene,M.verge,EB.x+nx*10,EB.z+nz*10,EA.x+nx*10,EA.z+nz*10,6,0,0.06);
+  strip(scene,M.verge,EB.x-nx*10,EB.z-nz*10,EA.x-nx*10,EA.z-nz*10,6,0,0.06);
+  strip(scene,M.road,EB.x,EB.z,EA.x,EA.z,14,0,0.14);
+  for(let t=4;t<len;t+=9){strip(scene,M.line,EB.x+ux*t,EB.z+uz*t,EB.x+ux*(t+4),EB.z+uz*(t+4),0.25,0.14,0.02);}
+  for(let t=8;t<len-16;t+=7){[10,-10].forEach(o=>trees.push(new V3(EB.x+ux*t+nx*o,0,EB.z+uz*t+nz*o)));}
+}
+
+/* ---------- Plot data (sample) ---------- */
+const statuses=[];ORDER.forEach(k=>{for(let i=0;i<STATUS[k].count;i++)statuses.push(k);});
+for(let i=statuses.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[statuses[i],statuses[j]]=[statuses[j],statuses[i]];}
+const TYPES=[{name:'บ้านเดี่ยว 2 ชั้น',fl:2,fx:7,fz:8,use:[158,186]},{name:'บ้านเดี่ยว 2 ชั้น',fl:2,fx:7.4,fz:8.6,use:[170,210]},{name:'บ้านแฝด 2 ชั้น',fl:2,fx:6.4,fz:8.4,use:[128,146]},{name:'บ้านเดี่ยว 1 ชั้น',fl:1,fx:7.6,fz:9,use:[96,118]}];
+/* ---------- House models (3 styles by type, built once per type and shared) ----------
+   Local frame: front faces -z (toward the soi), plot is 9.2 × 14, house centre sits 1 m behind plot centre.
+   Each house = 3 meshes: walls (body colour), roof (status colour, swapped for highlight), details (vertex colours). */
+const HC={glass:'#34444d',glassHi:'#5f7884',wood:'#9b6a43',woodDk:'#6e4a30',trim:'#f8f6f1',dark:'#3a3e3c',stone:'#b8ad99',
+  lawn:'#8fb873',hedge:'#5b8c4b',fence:'#e4ded2',drive:'#cfd0cb',pave:'#d8d3c8',plant:'#6f9e57',lamp:'#fff3cf'};
+const wallMats=[L('#f6f3ec'),L('#efe6d6'),L('#e9ecea')];   // white, warm sand, cool grey
+const detMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.78,metalness:0.02});
+const _col=new THREE.Color();
+function hipGeo(w,d,h){   // hip roof with a ridge along the longer side
+  if(w>d){const g=hipGeo(d,w,h);g.rotateY(Math.PI/2);return g;}
+  const a=w/2,b=d/2,r=b-a,c=[[-a,0,-b],[a,0,-b],[a,0,b],[-a,0,b]],R0=[0,h,-r],R1=[0,h,r];
+  const T=[[c[0],c[1],R0],[c[2],c[3],R1],[c[1],c[2],R1],[c[1],R1,R0],[c[3],c[0],R0],[c[3],R0,R1]],pos=[];
+  T.forEach(t=>{const cx=(t[0][0]+t[1][0]+t[2][0])/3,cz=(t[0][2]+t[1][2]+t[2][2])/3;
+    const u=[t[1][0]-t[0][0],t[1][1]-t[0][1],t[1][2]-t[0][2]],v=[t[2][0]-t[0][0],t[2][1]-t[0][1],t[2][2]-t[0][2]];
+    const nx=u[1]*v[2]-u[2]*v[1],nz=u[0]*v[1]-u[1]*v[0],ny=u[2]*v[0]-u[0]*v[2];   // only sign matters
+    const out=nx*cx+ny*1+nz*cz>0;(out?t:[t[0],t[2],t[1]]).forEach(p=>pos.push(...p));});
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('uv',new THREE.Float32BufferAttribute(new Array(pos.length/3*2).fill(0),2));g.computeVertexNormals();return g;
+}
+function wedgeGeo(fx,z0,z1,y0,rise){   // side gables under a mono-pitch roof (triangle extruded across the house)
+  const sh=new THREE.Shape([new THREE.Vector2(z0,y0),new THREE.Vector2(z1,y0),new THREE.Vector2(z1,y0+rise)]);
+  const g=new THREE.ExtrudeGeometry(sh,{depth:fx,bevelEnabled:false});g.rotateY(-Math.PI/2);g.translate(fx/2,0,0);return g;
+}
+function houseKit(){
+  const W=[],R=[],D=[],G=[];
+  const geo=(sx,sy,sz,x,y,z,rx)=>{const g=new THREE.BoxGeometry(sx,sy,sz);if(rx)g.rotateX(rx);g.translate(x,y+(rx?0:sy/2),z);return g;};
+  return{W,R,D,G,
+    gl:(x,y,z,sx,sy,sz)=>G.push(geo(sx,sy,sz,x,y,z)),
+    wall:(x,y,z,sx,sy,sz)=>W.push(geo(sx,sy,sz,x,y,z)),
+    roof:(g)=>R.push(g),
+    det:(col,x,y,z,sx,sy,sz,rx)=>{const g=geo(sx,sy,sz,x,y,z,rx);g.userData.col=col;D.push(g);},
+    detG:(col,g)=>{g.userData.col=col;D.push(g);},
+  };
+}
+function finish(list,colored){
+  if(!list.length)return null;
+  const gs=list.map(g=>{let n=g.index?g.toNonIndexed():g;if(!n.attributes.uv)n.setAttribute('uv',new THREE.Float32BufferAttribute(new Array(n.attributes.position.count*2).fill(0),2));
+    if(colored){_col.set(g.userData.col);const c=new Float32Array(n.attributes.position.count*3);for(let i=0;i<c.length;i+=3){c[i]=_col.r;c[i+1]=_col.g;c[i+2]=_col.b;}n.setAttribute('color',new THREE.BufferAttribute(c,3));}
+    else if(n.attributes.color)n.deleteAttribute('color');
+    return n;});
+  return THREE.mergeGeometries(gs,false);
+}
+// yard shared by every built house: lawn, driveway, fence with pillars, side/back walls, hedge
+function yard(k,T,m,z0){
+  const F=z0-T.fz/2,B=z0+T.fz/2;
+  k.det(HC.lawn,-m*2.05,0,(F-6.9)/2,4.9,0.05,F+6.9-0.02);   // front lawn (opposite the driveway)
+  k.det(HC.lawn,0,0,(B+6.9)/2,9,0.05,6.9-B);                 // back garden
+  k.det(HC.pave,0,0,z0,9,0.035,T.fz+0.6);                     // side paths
+  k.det(HC.drive,m*2.45,0,-5,3.6,0.07,4.1);                   // driveway
+  k.det(HC.pave,-m*0.1,0,-6,1,0.075,1.9);                     // front path to the door
+  // front fence: low wall + pillars, open at the driveway and the pedestrian gate
+  k.det(HC.fence,-m*2.55,0,-6.88,3.9,0.85,0.2);
+  [-4.5,-0.6,0.4,4.5].forEach(x=>k.det(HC.fence,m*x,0,-6.88,0.42,1.25,0.42));
+  [-4.5,-0.6,0.4,4.5].forEach(x=>k.det(HC.dark,m*x,1.25,-6.88,0.46,0.06,0.46));
+  k.det(HC.dark,m*0.58,0.95,-6.8,0.18,0.22,0.12);              // mailbox
+  k.det(HC.hedge,-m*2.5,0,-6.45,3.7,0.62,0.5);
+  // side + back boundary walls (low, thin)
+  k.det(HC.fence,4.55,0,0,0.12,1.3,13.7);k.det(HC.fence,-4.55,0,0,0.12,1.3,13.7);k.det(HC.fence,0,0,6.9,9.2,1.3,0.12);
+  // potted plants by the door
+  k.det(HC.plant,m*0.9,0,F-0.5,0.5,0.55,0.5);
+}
+function tropical(k,T,m){   // 2-storey modern tropical: hip roof, deep eaves, balcony, timber louvres
+  const z0=1,F=z0-T.fz/2,fx=T.fx,fz=T.fz,up=0.9;
+  yard(k,T,m,z0);
+  k.det(HC.stone,0,0,z0,fx+0.3,0.3,fz+0.3);
+  k.wall(0,0.3,z0,fx,2.9,fz);
+  k.det(HC.trim,0,3.2,z0,fx+0.24,0.22,fz+0.24);                       // floor band
+  k.wall(0,3.42,z0+up/2,fx,2.85,fz-up);                                 // upper floor, set back
+  // eaves + roof
+  k.det(HC.trim,0,6.12,z0+up/2,fx+1.9,0.26,fz-up+1.9);
+  const r=hipGeo(fx+1.9,fz-up+1.9,1.55);r.translate(0,6.38,z0+up/2);k.roof(r);
+  // ground floor front: sliding glass, door with canopy
+  k.gl(-m*1.15,0.55,F-0.03,3.5,2.25,0.08);k.det(HC.trim,-m*1.15,2.8,F-0.05,3.7,0.12,0.12);
+  for(let i=0;i<3;i++)k.det(HC.trim,-m*(2.9-i*1.75),0.55,F-0.06,0.07,2.25,0.06);
+  k.det(HW.wood,m*2.15,0.3,F-0.04,1.1,2.4,0.1);k.det(HC.dark,m*1.75,1.35,F-0.1,0.05,0.25,0.05);
+  k.det(HC.trim,m*2.15,2.85,F-0.55,1.9,0.12,1.1);
+  // balcony on the setback, glass rail, upper windows, timber louvre screen
+  k.det(HC.trim,-m*1.05,3.2,F+0.25,4.2,0.22,1.3);
+  k.det(HC.glassHi,-m*1.05,3.42,F-0.36,4.2,1.0,0.05);k.det(HC.dark,-m*1.05,4.42,F-0.36,4.25,0.06,0.08);
+  k.gl(-m*1.1,3.75,F+up-0.03,3.1,2.1,0.08);
+  for(let i=0;i<7;i++)k.det(HW.wood,m*(1.1+i*0.36),3.55,F+up-0.08,0.12,2.5,0.14);
+  k.det(HW.dk,m*2.2,3.55,F+up-0.02,2.6,2.5,0.04);
+  // side and back windows
+  [-1,1].forEach(sd=>{k.gl(sd*(fx/2+0.03),1.0,z0+1.2,0.07,1.5,1.8);k.gl(sd*(fx/2+0.03),4.0,z0+1.4,0.07,1.4,1.6);
+    k.det(HC.trim,sd*(fx/2+0.06),0.92,z0+1.2,0.1,0.08,2.0);});
+  k.gl(m*1.5,1.0,z0+fz/2+0.03,2.4,1.6,0.07);k.gl(-m*1.6,4.0,z0+fz/2+0.03,2,1.4,0.07);
+  // AC units at the side
+  k.det(HC.trim,-m*(fx/2+0.35),0.3,z0+2.6,0.6,0.7,0.9);
+  return z0;
+}
+function shed(k,T,m){   // 2-storey contemporary twin-style: mono-pitch roof, timber cladding
+  const z0=1,F=z0-T.fz/2,B=z0+T.fz/2,fx=T.fx,fz=T.fz,top=6.0,rise=1.15;
+  yard(k,T,m,z0);
+  k.det(HC.stone,0,0,z0,fx+0.3,0.3,fz+0.3);
+  k.wall(0,0.3,z0,fx,top-0.3,fz);
+  k.W.push(wedgeGeo(fx,F,B,top,rise));
+  k.det(HC.trim,0,3.15,z0,fx+0.2,0.16,fz+0.2);
+  // roof slab rising toward the back, with white fascia
+  const ang=Math.atan2(rise,fz),len=Math.hypot(fz+1.6,(fz+1.6)*Math.tan(ang));
+  const rg=new THREE.BoxGeometry(fx+1.0,0.26,len);rg.rotateX(-ang);rg.translate(0,top+rise/2+0.16,z0);k.roof(rg);
+  k.det(HC.trim,0,top+0.12-(0.8*Math.tan(ang)),F-0.8,fx+1.02,0.3,0.12);
+  // timber-clad upper block + windows
+  k.det(HW.wood,-m*1.3,3.31,F-0.05,fx*0.5,2.6,0.1);
+  for(let i=0;i<9;i++)k.det(HW.dk,-m*(1.3-fx*0.25+0.18+i*fx*0.5/9),3.31,F-0.11,0.04,2.6,0.03);
+  k.gl(m*1.65,3.6,F-0.03,2.0,1.8,0.08);k.det(HC.trim,m*1.65,3.5,F-0.12,2.3,0.1,0.22);
+  // ground floor: glass + door + slim canopy
+  k.gl(-m*1.2,0.55,F-0.03,3.2,2.2,0.08);
+  k.det(HW.wood,m*1.85,0.3,F-0.04,1.05,2.4,0.1);
+  k.det(HC.trim,0,2.95,F-0.6,fx,0.12,1.2);
+  [-1,1].forEach(sd=>{k.gl(sd*(fx/2+0.03),1.0,z0+1,0.07,1.5,1.6);k.gl(sd*(fx/2+0.03),3.9,z0+0.8,0.07,1.3,1.4);});
+  k.gl(0,1.0,B+0.03,2.6,1.6,0.07);
+  k.det(HC.trim,-m*(fx/2+0.35),0.3,z0+2.4,0.6,0.7,0.9);
+  return z0;
+}
+function flatHouse(k,T,m){   // 1-storey modern: two flat-roof volumes, full-height glass, timber screen
+  const z0=1,F=z0-T.fz/2,fx=T.fx,fz=T.fz,xa=-fx/2,xs=0.5,xb=fx/2,wA=xs-xa,wB=xb-xs,cA=(xa+xs)/2*m,cB=(xs+xb)/2*m;
+  yard(k,T,m,z0);
+  k.det(HC.stone,0,0,z0,fx+0.3,0.3,fz+0.3);
+  k.wall(cA,0.3,z0,wA,3.5,fz);                       // living (taller)
+  k.wall(cB,0.3,z0+0.6,wB,2.95,fz-1.2);              // bedrooms, set back
+  k.roof(new THREE.BoxGeometry(wA+1.1,0.32,fz+1.1).translate(cA,3.96,z0));
+  k.roof(new THREE.BoxGeometry(wB+0.5,0.26,fz-0.6).translate(cB,3.38,z0+0.6));
+  k.det(HC.trim,cA,3.78,z0,wA+1.12,0.04,fz+1.12);k.det(HC.trim,cB,3.23,z0+0.6,wB+0.52,0.04,fz-0.58);   // fascia line
+  // living: full-height glass with mullions
+  k.gl(cA,0.45,F-0.03,wA-0.5,2.95,0.08);
+  for(let i=0;i<4;i++)k.det(HC.dark,cA+(-(wA-0.5)/2+i*(wA-0.5)/3),0.45,F-0.07,0.06,2.95,0.05);
+  // bedroom wing: timber slat screen + door
+  const Fb=F+1.2;
+  for(let i=0;i<8;i++)k.det(HW.wood,cB+(-wB/2+0.3+i*(wB-0.6)/7)*1,0.3,Fb-0.12,0.12,2.9,0.14);
+  k.det(HW.dk,cB,0.3,Fb-0.03,wB-0.3,2.9,0.05);
+  k.det(HW.wood,m*(xs+0.75),0.3,Fb-0.25,1.0,2.4,0.08);
+  // terrace in front of the setback
+  k.det(HW.wood,cB,0.3,F+0.55,wB,0.08,1.25);
+  [-1,1].forEach(sd=>k.gl(sd*(fx/2+0.03),1.0,z0+1.4,0.07,1.6,2.0));
+  k.gl(cA,1.0,z0+fz/2+0.03,2.4,1.6,0.07);
+  k.det(HC.trim,m*(fx/2+0.35),0.3,z0+2.8,0.6,0.7,0.9);
+  return z0;
+}
+// timber palettes (main, dark) and glass tints — mixed per house so streets don't look cloned
+const WOODS=[{wood:'#9b6a43',dk:'#6e4a30'},{wood:'#c39a6b',dk:'#9a774f'},{wood:'#5f4334',dk:'#3e2b21'},{wood:'#8c847a',dk:'#655d54'}];
+const GLASS_TINTS=['#34444d','#4a3f33','#2f4641','#3a4458'];
+let HW=WOODS[0];
+const glassMats={},glassList=[];
+function glassMat(tint,level){   // level = window light strength at night (0 = nobody home)
+  const k=tint+'|'+level;if(glassMats[k])return glassMats[k];
+  const m=new THREE.MeshStandardMaterial({color:tint,roughness:0.14,metalness:0.4,emissive:level>1?'#ffc477':'#ffd49a',emissiveIntensity:0});
+  m.userData.level=level;glassList.push(m);return glassMats[k]=m;
+}
+const STYLE=[tropical,tropical,shed,flatHouse];   // per TYPES index
+const KITS={},vr=mulberry(777);   // separate RNG for decoration so the sample data stays identical
+function houseTemplate(ti,m,pi){
+  const key=ti+'|'+m+'|'+pi;HW=WOODS[pi];if(KITS[key])return KITS[key];
+  const k=houseKit(),z0=STYLE[ti](k,TYPES[ti],m);
+  return KITS[key]={wall:finish(k.W,false),roof:finish(k.R,false),det:finish(k.D,true),glass:finish(k.G,false),z0};
+}
+const plots=[],pickables=[];
+const laneCount={};
+slots.forEach((sl,i)=>{
+  const st=statuses[i],w=wings[sl.wi],g=w.group;
+  laneCount[sl.letter]=(laneCount[sl.letter]||0)+1;
+  const code=sl.letter+'-'+String(laneCount[sl.letter]).padStart(2,'0');
+  const ti=Math.floor(rand()*TYPES.length),T=TYPES[ti];
+  const p={id:i,code,status:st,type:T.name,land:Math.round(50+rand()*28),use:Math.round(T.use[0]+rand()*(T.use[1]-T.use[0])),lane:'ซอย '+sl.letter,parts:[]};
+  const slab=box(g,M.plot,sl.lx,0,sl.lz,9.2,0.08,14);slab.userData.plot=p;pickables.push(slab);p.slab=slab;
+  const hg=new THREE.Group();hg.position.set(sl.lx,0.08,sl.lz);hg.rotation.y=sl.s>0?0:Math.PI;g.add(hg);
+  if(st!=='vacant')ao(hg,0,0.015,st==='wip'?0:1,T.fx+3.4,T.fz+3.4);
+  p.world=wp(w.f,sl.lx,sl.lz);
+  if(st!=='vacant'){
+    const wh=T.fl===2?6.2:3.4;
+    if(st==='wip'){
+      box(hg,M.drive,2.2,0,-5.6,3,0.05,2.8);
+      const walls=box(hg,M.wallWip,0,0,0,T.fx,wh*0.62,T.fz,true);walls.userData.plot=p;pickables.push(walls);
+      const tarp=box(hg,statusMat[st],0,wh*0.62,0,T.fx+0.6,0.16,T.fz+0.6,true);tarp.userData.plot=p;pickables.push(tarp);p.parts.push(tarp);
+      const sc=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(T.fx+1.2,wh,T.fz+1.2)),new THREE.LineBasicMaterial({color:'#8a5a40'}));
+      sc.position.y=wh/2;hg.add(sc);
+    }else{
+      const m=i%2?1:-1,K=houseTemplate(ti,m,Math.floor(vr()*WOODS.length));   // mirror every other house so the street doesn't repeat
+      const mk=(geo,mat,cast)=>{const o=new THREE.Mesh(geo,mat);o.castShadow=cast;o.receiveShadow=true;o.userData.plot=p;hg.add(o);pickables.push(o);return o;};
+      mk(K.wall,wallMats[Math.floor(vr()*wallMats.length)],true);
+      mk(K.det,detMat,true);
+      // occupied (transferred) homes light up at night; unsold stock / backlog stay dark
+      const lv=st==='transferred'?(vr()<0.72?1.7:0.65):0;
+      mk(K.glass,glassMat(GLASS_TINTS[Math.floor(vr()*GLASS_TINTS.length)],lv),false);
+      p.parts.push(mk(K.roof,statusMat[st],true));
+      if(ti===3&&vr()<0.6){hg.updateWorldMatrix(true,false);trees.push(hg.localToWorld(new V3(-m*2.7,0,-5.3)).setY(0.08));}   // garden tree for bungalows
+    }
+  }else{
+    box(hg,M.trunk,-3.4,0,-6,0.16,2.2,0.16,true);
+    const sign=box(hg,statusMat[st],-3.4,1.6,-6.05,2.2,1.1,0.12,true);sign.userData.plot=p;pickables.push(sign);p.parts.push(sign);
+  }
+  plots.push(p);
+});
+
+/* ---------- Residents, vehicles, visitors, SOS (sample) ---------- */
+const r2=mulberry(4242),pk=a=>a[Math.floor(r2()*a.length)];
+const FN=['สมชาย','สมหญิง','ณัฐพล','กานต์ธิดา','ธนากร','พิมพ์ชนก','วรวุฒิ','อรอุมา','ปิยะพงษ์','ศิริพร','ชยพล','นภัสสร','อนุชา','จิราพร','ภูมิพัฒน์','สุนิสา','กิตติพงษ์','มณีรัตน์','ธีรวัฒน์','ปวีณา'];
+const LN=['ใจดี','ศรีสุข','วงศ์ไทย','รุ่งเรือง','ทองคำ','แสงอรุณ','บุญมา','สุขสวัสดิ์','เจริญผล','พรหมมา','ชัยมงคล','อินทร์แก้ว','นาคสวัสดิ์','ปัญญาดี'];
+const FOREIGN=['John Miller','Tanaka Hiroshi','Emma Schulz','Liu Wei'];
+const ROLE={owner:'เจ้าของกรรมสิทธิ์',resident:'ผู้อาศัย',tenant:'ผู้เช่า'};
+const CONS='กขคงจฉชญฐฒณดตถทธนบปผพฟภมยรลวศษสหฬอฮ';
+const PROV=['กรุงเทพมหานคร','กรุงเทพมหานคร','กรุงเทพมหานคร','นนทบุรี','ปทุมธานี','สมุทรปราการ'];
+const plate=()=>(r2()<0.35?String(1+Math.floor(r2()*9)):'')+pk(CONS)+pk(CONS)+' '+(1+Math.floor(r2()*9999));
+const person=()=>pk(FN)+' '+pk(LN);
+const phone=()=>'08'+Math.floor(r2()*10)+'-'+String(Math.floor(r2()*1000)).padStart(3,'0')+'-'+String(Math.floor(r2()*10000)).padStart(4,'0');
+const CARS=['Toyota Camry','Honda Civic','Honda CR-V','Mazda CX-5','Toyota Fortuner','BYD Atto 3','Tesla Model 3','Isuzu D-Max','Nissan Almera','MG ZS EV','Honda PCX (จยย.)'];
+const COLORS=['ขาว','ดำ','เทา','เงิน','แดง','น้ำเงิน','น้ำตาล'];
+const MIN=60000,LIMIT=15;
+const homes=plots.filter(p=>p.status==='transferred');
+homes.forEach(p=>{
+  const rented=r2()<0.22,owner=person(),ln=owner.split(' ')[1];
+  p.residents=[];
+  if(rented){
+    p.residents.push({name:owner,role:'owner',phone:phone(),note:'ไม่ได้พักอาศัย'});
+    p.residents.push({name:r2()<0.3?pk(FOREIGN):person(),role:'tenant',phone:phone(),note:'สัญญาเช่าถึง '+pk(['มี.ค. 2570','ก.ย. 2570','ม.ค. 2571'])});
+    if(r2()<0.45)p.residents.push({name:person(),role:'tenant',phone:phone()});
+  }else{
+    p.residents.push({name:owner,role:'owner',phone:phone()});
+    for(let i=Math.floor(r2()*4);i>0;i--)p.residents.push({name:pk(FN)+' '+ln,role:'resident',phone:r2()<0.6?phone():null});
+  }
+  p.occupancy=rented?'ปล่อยเช่า':'เจ้าของพักอาศัย';
+  p.vehicles=[];
+  for(let i=r2()<0.12?0:1+Math.floor(r2()*(rented?2:3));i>0;i--)p.vehicles.push({plate:plate(),prov:pk(PROV),model:pk(CARS),color:pk(COLORS),inside:r2()<0.62});
+  p.visitors=[];p.sos=null;
+});
+
+const VT={guest:{label:'ผู้มาเยี่ยม',watch:false,veh:'รถยนต์'},taxi:{label:'Taxi',watch:true,veh:'รถยนต์'},food:{label:'ส่งอาหาร',watch:true,veh:'จักรยานยนต์'},parcel:{label:'ส่งพัสดุ',watch:true,veh:'จักรยานยนต์'},service:{label:'ช่าง/บริการ',watch:false,veh:'รถกระบะ'}};
+const VCO={taxi:['Taxi Meter','Grab Car','Bolt'],food:['GrabFood','LINE MAN','foodpanda','Robinhood'],parcel:['Kerry Express','Flash Express','ไปรษณีย์ไทย','J&T Express'],service:['ช่างแอร์','ช่างประปา','แม่บ้านรายวัน','ติดตั้งอินเทอร์เน็ต']};
+const visitors=[];let vid=1;
+function addVisitor(type,mins,p){
+  p=p||pk(homes);
+  const v={id:vid++,type,plate:plate(),prov:pk(PROV),house:p,since:Date.now()-mins*MIN,who:type==='guest'?'คุณ'+person():pk(VCO[type])};
+  visitors.push(v);p.visitors.push(v);return v;
+}
+// mix of normal visits and over-time ones; two sit just under 15 min so they cross the limit live
+[['taxi',22],['food',31],['parcel',18.5],['taxi',6],['food',9],['parcel',12],['guest',45],['guest',82],['guest',14],['service',95],['food',3],['guest',27],['parcel',14.6],['taxi',14.3],['service',38]].forEach(([t,m])=>addVisitor(t,m));
+const isLong=v=>VT[v.type].watch&&Date.now()-v.since>LIMIT*MIN;
+
+const SOSK={medical:'เจ็บป่วยฉุกเฉิน',intruder:'พบบุคคลน่าสงสัย',fire:'ได้กลิ่นควัน / ไฟไหม้',help:'ขอความช่วยเหลือทั่วไป'};
+const sosList=[];let sid=1;
+function addSOS(kind,mins,state){
+  const p=pk(homes.filter(h=>!h.sos));
+  const s={id:sid++,kind,house:p,since:Date.now()-mins*MIN,state:state||'new',by:p.residents.find(r=>r.role!=='owner'||!r.note)};
+  sosList.push(s);p.sos=s;return s;
+}
+addSOS('medical',2);addSOS('intruder',7,'ack');
+
+/* ---------- Common areas: maintenance, CCTV, lost pet (sample) ---------- */
+const DAY=86400000,today=new Date();today.setHours(9,0,0,0);
+const dAt=n=>today.getTime()+n*DAY;
+const BLV=(()=>{const dx=EA.x-EB.x,dz=EA.z-EB.z,len=Math.hypot(dx,dz),ux=dx/len,uz=dz/len;return{len,at:(t,o)=>new V3(EB.x+ux*t+uz*o,0,EB.z+uz*t-ux*o)};})();
+const W0=wings[0].f,W1=wings[1].f;
+
+// start/eta are day offsets from today so the sample stays meaningful whenever it is opened
+const maint=[
+  {id:'MT-031',title:'ซ่อมผิวถนนแอสฟัลต์',place:'ถนนซอย C',pos:wp(W0,-60,18),cat:'ถนน',start:-6,eta:7,progress:55,by:'บจก. ทางดีก่อสร้าง',note:'ปิดช่องจราจรฝั่งขวาชั่วคราว ใช้ความเร็วไม่เกิน 20 กม./ชม.'},
+  {id:'MT-029',title:'ปรับปรุงสนามเด็กเล่น',place:'สวนหย่อม ซอย D',pos:parks['0-3-1-0'].pos,cat:'สวน/สันทนาการ',start:-11,eta:20,progress:30,by:'ฝ่ายช่างนิติบุคคล',note:'งดใช้เครื่องเล่นจนกว่างานจะแล้วเสร็จ'},
+  {id:'MT-027',title:'เปลี่ยนไม้กั้นรถอัตโนมัติ',place:'ป้อมยามประตูหน้า',pos:BLV.at(BLV.len-10,0),cat:'ระบบความปลอดภัย',start:-16,eta:-2,progress:80,by:'บจก. เซฟเกท',note:'รออะไหล่มอเตอร์จากผู้ผลิต — ใช้ไม้กั้นมือชั่วคราว'},
+  {id:'MT-033',title:'ลอกท่อระบายน้ำ',place:'ถนนซอย F',pos:wp(W1,70,-12),cat:'ระบบระบายน้ำ',start:4,eta:8,progress:0,by:'บจก. คลีนไลน์',note:'แจ้งลูกบ้านซอย F ล่วงหน้า 3 วัน'},
+  {id:'MT-032',title:'ซ่อมไฟส่องสว่าง 6 ต้น',place:'ถนนเมนทางเข้า',pos:BLV.at(60,9),cat:'ไฟฟ้า',start:-1,eta:1,progress:50,by:'ฝ่ายช่างนิติบุคคล',note:'ดำเนินการช่วงกลางวัน 09:00–16:00'},
+  {id:'MT-024',title:'ทาสีศาลาและม้านั่ง',place:'ลานกิจกรรมกลาง',pos:new V3(10.5,0,-10),cat:'อาคาร/ศาลา',start:-25,eta:-12,progress:100,by:'บจก. สีสวย',note:'ส่งมอบงานเรียบร้อย'},
+];
+maint.forEach(m=>{m.start=dAt(m.start);m.eta=dAt(m.eta);});
+function maintState(m){const n=Date.now();if(m.progress>=100)return'done';if(n<m.start)return'plan';if(n>m.eta)return'late';return'wip';}
+const MST={wip:'กำลังดำเนินการ',late:'เลยกำหนด',plan:'รอเริ่มงาน',done:'เสร็จแล้ว'};
+// traffic cones around active work sites
+const coneG=new THREE.Group(),camG=new THREE.Group();scene.add(camG);
+{
+  const coneGeo=new THREE.ConeGeometry(0.5,1.3,10);coneGeo.translate(0,0.65,0);
+  const coneMat=L('#e8742a'),bandMat=L('#f4f1ea');scene.add(coneG);
+  maint.forEach(m=>{
+    if(maintState(m)==='done'||maintState(m)==='plan')return;
+    for(let i=0;i<7;i++){const a=i/7*Math.PI*2,c=new THREE.Mesh(coneGeo,coneMat);c.position.set(m.pos.x+Math.cos(a)*5,0.14,m.pos.z+Math.sin(a)*5);c.castShadow=true;coneG.add(c);
+      const b=box(coneG,bandMat,c.position.x,0.75,c.position.z,0.62,0.18,0.62);b.castShadow=false;}
+  });
+}
+
+// CCTV: pole position + where it looks
+const cams=[
+  {id:'CAM-01',name:'ประตูหน้า ขาเข้า',pos:BLV.at(BLV.len-26,11),look:BLV.at(BLV.len-4,0)},
+  {id:'CAM-02',name:'ถนนเมน กลางทาง',pos:BLV.at(78,-11),look:BLV.at(52,0)},
+  {id:'CAM-03',name:'ลานกิจกรรม ฝั่งใต้',pos:new V3(-27,0,18),look:new V3(2,0,-6)},
+  {id:'CAM-04',name:'ลานกิจกรรม ฝั่งเหนือ',pos:new V3(27,0,-27),look:new V3(-2,0,-2)},
+  {id:'CAM-05',name:'แยกซอย B',pos:wp(W0,7,-15),look:wp(W0,-40,-22)},
+  {id:'CAM-06',name:'แยกซอย D',pos:wp(W0,7,65),look:wp(W0,-40,58)},
+  {id:'CAM-07',name:'สวนหย่อม ซอย A',pos:parks['0-0--1-0'].pos.clone().add(new V3(6,0,10)),look:parks['0-0--1-0'].pos},
+  {id:'CAM-08',name:'แยกซอย E',pos:wp(W1,-7,-45),look:wp(W1,40,-52)},
+  {id:'CAM-09',name:'สวนหย่อม ซอย G',pos:parks['1-2-1-0'].pos.clone().add(new V3(-6,0,-10)),look:parks['1-2-1-0'].pos},
+  {id:'CAM-10',name:'ถนนรอบโครงการ ฝั่งตะวันออก',pos:wp(W1,104,0),look:wp(W1,110,-40),offline:true},
+];
+{
+  const poleMat=L('#5c6560'),headMat=L('#eceee9');
+  cams.forEach(c=>{
+    c.h=7;
+    box(camG,poleMat,c.pos.x,0,c.pos.z,0.32,c.h,0.32,true);
+    const head=new THREE.Group();head.position.set(c.pos.x,c.h,c.pos.z);head.lookAt(c.look.x,c.h-3,c.look.z);
+    const b=box(head,headMat,0,-0.35,0.35,0.7,0.7,1.6,true);b.receiveShadow=false;
+    box(head,carGlass,0,-0.3,1.16,0.42,0.42,0.06);camG.add(head);
+  });
+}
+
+// Lost pet: one dog, sightings come from CCTV detections
+const petHome=homes[Math.floor(homes.length*0.4)];
+const pet={name:'ข้าวปั้น',species:'สุนัข',breed:'คอร์กี้',color:'น้ำตาลส้ม-ขาว',collar:'ปลอกคอสีแดง มีกระดิ่ง',sex:'เพศผู้ · 3 ปี',
+  house:petHome,owner:petHome.residents.find(r=>r.role!=='owner'||!r.note),reportedAt:Date.now()-104*MIN,status:'lost',sightings:[]};
+const camById=id=>cams.find(c=>c.id===id);
+[['CAM-06',88,0.81],['CAM-07',55,0.88],['CAM-03',17,0.93]].forEach(([id,m,cf])=>pet.sightings.push({cam:camById(id),at:Date.now()-m*MIN,conf:cf}));
+const PET_ROUTE=['CAM-04','CAM-09','CAM-08','CAM-02','CAM-05','CAM-07','CAM-03'];
+const petLast=()=>pet.sightings[pet.sightings.length-1];
+const dog=new THREE.Group();
+{
+  const fur=L('#d98b3a'),white=L('#f3ece0'),dark=L('#2a2420');
+  box(dog,fur,0,0.42,0,1.25,0.5,0.55,true);box(dog,white,0.15,0.4,0,0.7,0.32,0.5);
+  box(dog,fur,0.72,0.7,0,0.42,0.4,0.42,true);box(dog,white,0.95,0.6,0,0.22,0.18,0.26);box(dog,dark,1.07,0.66,0,0.06,0.08,0.08);
+  [[0.82,0.12],[0.82,-0.12]].forEach(([x,z])=>box(dog,fur,x,1.08,z,0.1,0.22,0.12));
+  box(dog,fur,-0.68,0.6,0,0.22,0.12,0.12);
+  box(dog,L('#c8322b'),0.55,0.62,0,0.08,0.3,0.46);
+  dog.userData.legs=[[0.42,0.18],[0.42,-0.18],[-0.42,0.18],[-0.42,-0.18]].map(([x,z])=>{const g=new THREE.Group();g.position.set(x,0.3,z);box(g,fur,0,-0.3,0,0.14,0.3,0.14,true);dog.add(g);return g;});
+  dog.scale.setScalar(1.5);scene.add(dog);
+}
+
+/* ---------- Feature switches (presentation settings) ---------- */
+const FEATS=[
+  {k:'residents',g:'ลูกบ้าน',t:'ลูกบ้านและรถลูกบ้าน',d:'รายชื่อผู้พักอาศัย บทบาท รถลูกบ้าน และ KPI ลูกบ้าน'},
+  {k:'sos',g:'ความปลอดภัย',t:'SOS ขอความช่วยเหลือ',d:'หมุด SOS หลังคาแดงกะพริบ และแท็บ SOS'},
+  {k:'ai',g:'ความปลอดภัย',t:'AI วิเคราะห์ภาพ CCTV',d:'คนเดินวน ขับเร็ว ควัน ทิ้งขยะ ฯลฯ',need:'cctv'},
+  {k:'antitheft',g:'ยานพาหนะ',t:'โหมดกันขโมยรถ',d:'ล็อกรถไม่ให้ออกจากโครงการ เตือนที่ป้อม รปภ.',need:'residents'},
+  {k:'rogue',g:'ยานพาหนะ',t:'รถแปลกปลอม / จอดค้าง',d:'ทะเบียนไม่อยู่ในระบบ และรถจอดนิ่งนานผิดปกติ'},
+  {k:'visitors',g:'ยานพาหนะ',t:'รถผู้ติดต่อ',d:'รถผู้ติดต่อในโครงการ และรถที่อยู่เกินเวลา'},
+  {k:'cctv',g:'ส่วนกลาง',t:'CCTV ส่วนกลาง',d:'เสากล้องบนผัง และหน้าต่างภาพสด'},
+  {k:'maint',g:'ส่วนกลาง',t:'แจ้งซ่อมส่วนกลาง',d:'งานซ่อม/ปรับปรุง กรวยจราจร และกำหนดเสร็จ'},
+  {k:'pet',g:'ส่วนกลาง',t:'ตามหาสัตว์เลี้ยงหาย',d:'จุดพบล่าสุดจาก CCTV และเส้นทาง'},
+  {k:'sensors',g:'สิ่งแวดล้อม',t:'เซ็นเซอร์สิ่งแวดล้อม',d:'ระดับน้ำในท่อ ฝุ่น PM2.5 เสียง'},
+  {k:'weather',g:'สิ่งแวดล้อม',t:'สภาพอากาศ',d:'การ์ดสภาพอากาศในแผงภาพรวม'},
+  {k:'timeline',g:'Monitor',t:'Timeline เหตุการณ์รวม',d:'ฟีดทุกเหตุการณ์เรียงตามเวลา'},
+  {k:'sales',g:'ธุรกิจ',t:'โอกาสขาย (Sales lens)',d:'ระบายสีบ้านตามโอกาสขาย Home Service / Premium Security / ค่าส่วนกลาง'},
+];
+const F={};FEATS.forEach(f=>F[f.k]=true);
+try{Object.assign(F,JSON.parse(localStorage.getItem('village-demo-features')||'{}'));}catch(e){}
+const on=k=>{const f=FEATS.find(x=>x.k===k);return !!F[k]&&(!f||!f.need||on(f.need));};
+
+/* ---------- Anti-theft, rogue vehicles, AI detections, sensors, weather (sample) ---------- */
+homes.forEach(p=>p.vehicles.forEach(v=>v.house=p));
+const resVehicles=homes.flatMap(p=>p.vehicles).filter(v=>v.inside);
+resVehicles.filter((v,i)=>i%9===3).slice(0,7).forEach(v=>{v.lock=true;v.lockAt=Date.now()-(2+Math.floor(r2()*70))*60*MIN;});
+const gateAlerts=[];let gid=1;
+function gateAttempt(v,mins){const a={id:gid++,veh:v,at:Date.now()-(mins||0)*MIN,state:'blocked'};gateAlerts.push(a);return a;}
+const GATE_POS=BLV.at(BLV.len-6,0);
+
+const rogueG=new THREE.Group();scene.add(rogueG);
+const rogues=[
+  {id:'RV-01',kind:'unknown',plate:'ฮษ 4471',prov:'ชลบุรี',color:'#3b3f44',pos:wp(W0,-36,-18.6),yaw:-W0.a,since:-26,cam:'CAM-05',note:'ทะเบียนไม่อยู่ในฐานข้อมูลลูกบ้าน/ผู้ติดต่อ และไม่ได้แลกบัตรที่ป้อม'},
+  {id:'RV-02',kind:'parked',plate:'3กร 5520',prov:'กรุงเทพมหานคร',color:'#b8443a',pos:wp(W0,-75,21.2),yaw:-W0.a,since:-320,note:'จอดนิ่งบนถนนซอย C เกิน 5 ชม. ขวางทางเข้าบ้านฝั่งตรงข้าม'},
+  {id:'RV-03',kind:'parked',plate:'กษ 902',prov:'นนทบุรี',color:'#e9e9e4',pos:wp(W1,22,30.8),yaw:-W1.a,since:-410,cam:'CAM-09',note:'รถผู้ติดต่อ เข้าตั้งแต่เมื่อวาน ยังไม่บันทึกออก จอดข้างสวนหย่อม'},
+];
+rogues.forEach(r=>{r.since=Date.now()+r.since*MIN;r.state='open';});   // car models are added after makeCar exists
+const RK={unknown:'ทะเบียนไม่อยู่ในระบบ',parked:'จอดค้างนานผิดปกติ'};
+
+const AIT={loiter:'บุคคลเดินวนผิดปกติ',speed:'รถใช้ความเร็วเกินกำหนด',smoke:'ตรวจพบควัน',dump:'ทิ้งขยะผิดที่',night:'บุคคลเข้าพื้นที่นอกเวลา',fall:'ตรวจพบคนล้ม'};
+const aiList=[];let aid=1;
+function addAI(type,camId,mins,conf,note,state){const a={id:'AI-'+String(aid++).padStart(2,'0'),type,cam:camById(camId),at:Date.now()-mins*MIN,conf,note,state:state||'new'};aiList.push(a);return a;}
+addAI('loiter','CAM-08',4,0.87,'เดินวนบริเวณเดิม 3 รอบใน 10 นาที ไม่ได้เข้าบ้านหลังใด');
+addAI('speed','CAM-02',12,0.95,'ทะเบียน กท 8812 ความเร็วประมาณ 52 กม./ชม. (กำหนด 30)');
+addAI('smoke','CAM-09',21,0.71,'ควันจากการเผาใบไม้ในสวน — รปภ. ตรวจสอบแล้ว','ack');
+addAI('dump','CAM-07',48,0.83,'ถุงขยะ 2 ใบ วางไว้ข้างม้านั่ง','ack');
+addAI('night','CAM-06',9*60,0.9,'บุคคลเดินผ่านแยกซอย D เวลา 01:12 น. — ตรวจสอบแล้วเป็นลูกบ้าน','closed');
+
+const sensors=[
+  {id:'WL-01',type:'water',name:'ท่อระบายน้ำ ซอย B',pos:wp(W0,-50,-26),val:38,unit:'%',warn:60,crit:80},
+  {id:'WL-02',type:'water',name:'ท่อระบายน้ำ ซอย F',pos:wp(W1,58,-16),val:71,unit:'%',warn:60,crit:80,trend:0.35},
+  {id:'WL-03',type:'water',name:'บ่อพักน้ำ ถนนเมน',pos:BLV.at(32,-8.5),val:33,unit:'%',warn:60,crit:80},
+  {id:'AQ-01',type:'pm',name:'ลานกิจกรรมกลาง',pos:new V3(12.5,0.3,4),val:27,unit:'µg/m³',warn:37.5,crit:75},
+  {id:'AQ-02',type:'pm',name:'ประตูหน้า',pos:BLV.at(BLV.len-20,-9),val:41,unit:'µg/m³',warn:37.5,crit:75},
+  {id:'NS-01',type:'noise',name:'แยกซอย E',pos:wp(W1,-8,-60),val:58,unit:'dB',warn:70,crit:85},
+];
+const SENT={water:'ระดับน้ำ',pm:'ฝุ่น PM2.5',noise:'ระดับเสียง'};
+sensors.forEach(s=>{s.base=s.val;s.hist=Array.from({length:30},(_,i)=>s.val-(s.trend?(30-i)*s.trend*0.6:0)+(r2()-0.5)*s.val*0.05);s.hist[29]=s.val;});
+const senLevel=s=>s.val>=s.crit?'crit':s.val>=s.warn?'warn':'ok';
+const sensorG=new THREE.Group();scene.add(sensorG);
+{const postMat=L('#6c7570'),boxMat=L('#e4efe6');sensors.forEach(s=>{box(sensorG,postMat,s.pos.x,0,s.pos.z,0.22,2.4,0.22,true);box(sensorG,boxMat,s.pos.x,2.4,s.pos.z,0.8,0.6,0.5,true);});}
+
+const WX={temp:31.4,feels:36,hum:68,rain:40,wind:12,pm:29,cond:'มีเมฆบางส่วน'};
+
+/* ---------- Event timeline ---------- */
+const TLG={security:{t:'ความปลอดภัย',f:['sos','ai','antitheft']},vehicle:{t:'ยานพาหนะ',f:['visitors','rogue','antitheft']},common:{t:'ส่วนกลาง',f:['maint','cctv','pet']},env:{t:'สิ่งแวดล้อม',f:['sensors']}};
+const events=[];let eid=1;
+// go: {house}|{pos}|{cam}; sev: info|warn|crit
+function logEvent(at,f,sev,icon,text,go){const e={id:eid++,at,f,sev,icon,text,go:go||{}};events.push(e);return e;}
+visitors.forEach(v=>logEvent(v.since,'visitors','info',v.type,`รถ${VT[v.type].label} ${v.plate} เข้าโครงการ → บ้าน ${v.house.code}`,{house:v.house}));
+sosList.forEach(s=>logEvent(s.since,'sos','crit','sos',`SOS บ้าน ${s.house.code} · ${SOSK[s.kind]}`,{house:s.house}));
+sosList.filter(s=>s.state==='ack').forEach(s=>logEvent(s.since+2*MIN,'sos','info','sos',`รปภ. รับเรื่อง SOS บ้าน ${s.house.code}`,{house:s.house}));
+logEvent(pet.reportedAt,'pet','warn','paw',`บ้าน ${pet.house.code} แจ้ง${pet.species}หาย "${pet.name}"`,{house:pet.house});
+pet.sightings.forEach(s=>logEvent(s.at,'pet','info','paw',`AI ตรวจพบ "${pet.name}" ที่ ${s.cam.id} ${s.cam.name}`,{cam:s.cam}));
+maint.forEach(m=>{if(m.start<Date.now())logEvent(m.start,'maint','info','service',`เริ่มงาน ${m.id} ${m.title} · ${m.place}`,{pos:m.pos});});
+aiList.forEach(a=>logEvent(a.at,'ai',a.type==='smoke'||a.type==='night'?'crit':'warn','eye',`AI ${a.cam.id}: ${AIT[a.type]} (${Math.round(a.conf*100)}%)`,{cam:a.cam}));
+rogues.forEach(r=>logEvent(r.since+(r.kind==='parked'?180*MIN:0),'rogue','warn','car',`${RK[r.kind]} · ${r.plate} ${r.prov}`,{pos:r.pos}));
+resVehicles.filter(v=>v.lock).forEach(v=>logEvent(v.lockAt,'antitheft','info','lock',`บ้าน ${v.house.code} เปิดโหมดกันขโมย ${v.plate}`,{house:v.house}));
+{const v=resVehicles.find(x=>!x.lock);logEvent(Date.now()-5*60*MIN,'antitheft','info','lock',`เจ้าของยืนยันตัวตน เปิดไม้กั้นให้ ${v.plate} (บ้าน ${v.house.code})`,{pos:GATE_POS});}
+sensors.filter(s=>senLevel(s)!=='ok').forEach(s=>logEvent(Date.now()-14*MIN,'sensors','warn','gauge',`${s.id} ${SENT[s.type]}สูง ${Math.round(s.val)} ${s.unit} · ${s.name}`,{pos:s.pos}));
+logEvent(Date.now()-150*MIN,'cctv','warn','cam','CAM-10 ขาดการเชื่อมต่อ · แจ้งช่างแล้ว',{cam:camById('CAM-10')});
+{const v=resVehicles.find(x=>x.lock);const a=gateAttempt(v,3);logEvent(a.at,'antitheft','crit','lock',`รถ ${v.plate} (บ้าน ${v.house.code}) ที่เปิดกันขโมย พยายามออกจากโครงการ — ไม้กั้นไม่เปิด`,{pos:GATE_POS});}
+
+/* ---------- Lake park, sports lawn, entrance (landscape around the housing) ---------- */
+const extraFoot=[];
+const inPoly=(x,z,P)=>{let c=false;for(let i=0,j=P.length-1;i<P.length;j=i++){const [xi,zi]=P[i],[xj,zj]=P[j];if((zi>z)!==(zj>z)&&x<(xj-xi)*(z-zi)/(zj-zi)+xi)c=!c;}return c;};
+function landSlab(P,mat){   // extruded lawn slab with the same 0.6 m edge as the other ground pieces
+  const sh=new THREE.Shape(P.map(([x,z])=>new THREE.Vector2(x,-z)));
+  const geo=new THREE.ExtrudeGeometry(sh,{depth:0.6,bevelEnabled:false});geo.rotateX(-Math.PI/2);
+  const m=new THREE.Mesh(geo,mat);m.position.y=-0.58;m.receiveShadow=true;scene.add(m);
+  P.forEach(([x,z])=>extraFoot.push(new V3(x,0,z)));return m;
+}
+function flat(P,mat,y,holes){   // flat shape lying on the ground
+  const sh=new THREE.Shape(P.map(([x,z])=>new THREE.Vector2(x,-z)));
+  (holes||[]).forEach(H=>sh.holes.push(new THREE.Path(H.map(([x,z])=>new THREE.Vector2(x,-z)))));
+  const geo=new THREE.ShapeGeometry(sh,2);geo.rotateX(-Math.PI/2);const m=new THREE.Mesh(geo,mat);m.position.y=y;m.receiveShadow=true;scene.add(m);return m;
+}
+{ // Lake park (east of the boulevard): retention pond, jogging loop, pier, fountain
+  const P=[[14,48],[24,39],[128,74],[104,122],[30,146],[3,146]];
+  landSlab(P,M.lawn);
+  const C={x:62,z:94},A=0.32,blob=(k,add)=>{const out=[];for(let i=0;i<72;i++){const t=i/72*Math.PI*2,r=1+0.08*Math.sin(3*t+0.6)+0.05*Math.cos(5*t);
+    const lx=Math.cos(t)*(30*r*k+add),lz=Math.sin(t)*(15*r*k+add);out.push([C.x+lx*Math.cos(A)-lz*Math.sin(A),C.z+lx*Math.sin(A)+lz*Math.cos(A)]);}return out;};
+  flat(blob(1,4.4),M.paver,0.05,[blob(1,2.6)]);           // jogging loop
+  flat(blob(1,1.3),M.rim,0.06);                            // sandy rim
+  blob(1,5.9).filter((_,i)=>i%12===6).forEach(([x,z])=>lampPts.push(new V3(x,0,z)));
+  const w=flat(blob(1,0),M.water,0.1);w.receiveShadow=false;
+  // pier + deck pavilion on the north shore
+  const toW=(lx,lz)=>new V3(C.x+lx*Math.cos(A)-lz*Math.sin(A),0,C.z+lx*Math.sin(A)+lz*Math.cos(A));
+  const pierA=toW(-5,-21.5),pierB=toW(-5,-11);
+  strip(scene,M.deck,pierA.x,pierA.z,pierB.x,pierB.z,2.4,0.12,0.3).castShadow=true;
+  box(scene,M.deck,pierB.x,0.12,pierB.z,6,0.3,5,true);
+  [[-2.6,-2.1],[2.6,-2.1],[-2.6,2.1],[2.6,2.1]].forEach(([x,z])=>box(scene,M.wood,pierB.x+x,0.42,pierB.z+z,0.25,2.6,0.25,true));
+  {const r=new THREE.Mesh(roofGeo,L('#6f4f37'));r.position.set(pierB.x,3,pierB.z);r.scale.set(7.4,1.8,6.4);r.castShadow=true;scene.add(r);}
+  // fountain
+  const F0=toW(11,2);box(scene,M.white,F0.x,0.1,F0.z,1.2,0.5,1.2);
+  const spray=new THREE.Mesh(new THREE.ConeGeometry(1.6,4,16,1,true),new THREE.MeshBasicMaterial({color:'#e8f6fb',transparent:true,opacity:0.45,depthWrite:false,toneMapped:false}));
+  spray.rotation.x=Math.PI;spray.position.set(F0.x,2.5,F0.z);scene.add(spray);
+  // benches on the loop + trees on the lawn (outside the loop)
+  blob(1,6).filter((_,i)=>i%9===4).forEach(([x,z])=>{box(scene,M.wood,x,0.05,z,1.8,0.45,0.6,true);});
+  const ring=blob(1,8);
+  for(let i=0;i<150;i++){const x=10+rand()*120,z=38+rand()*110;
+    if(!inPoly(x,z,P)||inPoly(x,z,ring))continue;
+    if(P.some(([ax,az],j)=>{const [bx,bz]=P[(j+1)%P.length],dx=bx-ax,dz=bz-az,t=Math.max(0,Math.min(1,((x-ax)*dx+(z-az)*dz)/(dx*dx+dz*dz)));return Math.hypot(ax+dx*t-x,az+dz*t-z)<3.5;}))continue;
+    trees.push(new V3(x,0,z));}
+}
+{ // Sports lawn (west of the boulevard): futsal / basketball court
+  const P=[[-36,97],[-72,95],[-150,69],[-128,112],[-58,140]];
+  landSlab(P,M.lawn);
+  const g=new THREE.Group();g.position.set(-92,0.02,103);g.rotation.y=-0.32;scene.add(g);
+  box(g,M.curb,0,0,0,31,0.12,18);box(g,M.court,0,0,0,30,0.16,17);
+  const ln=(x,z,sx,sz)=>box(g,M.line,x,0.16,z,sx,0.02,sz);
+  ln(0,-8.1,28.4,0.18);ln(0,8.1,28.4,0.18);ln(-14.1,0,0.18,16.4);ln(14.1,0,0.18,16.4);ln(0,0,0.18,16.4);
+  [-1,1].forEach(s=>{box(g,M.white,s*14.6,0.16,-1.6,0.15,2.1,0.15,true);box(g,M.white,s*14.6,0.16,1.6,0.15,2.1,0.15,true);box(g,M.white,s*14.6,2.2,0,0.15,0.15,3.35,true);});
+  const court={cx:-92,cz:103};
+  for(let i=0;i<110;i++){const x=-150+rand()*114,z=66+rand()*76;if(!inPoly(x,z,P))continue;
+    const lx=(x-court.cx)*Math.cos(0.32)+(z-court.cz)*Math.sin(0.32),lz=-(x-court.cx)*Math.sin(0.32)+(z-court.cz)*Math.cos(0.32);
+    if(Math.abs(lx)<20&&Math.abs(lz)<13)continue;
+    if(P.some(([ax,az],j)=>{const [bx,bz]=P[(j+1)%P.length],dx=bx-ax,dz=bz-az,t=Math.max(0,Math.min(1,((x-ax)*dx+(z-az)*dz)/(dx*dx+dz*dz)));return Math.hypot(ax+dx*t-x,az+dz*t-z)<3.5;}))continue;
+    trees.push(new V3(x,0,z));}
+}
+{ // Entrance: link to the public road, gate portal with project name, guardhouse, raised barriers, feature walls
+  const len=BLV.len,U=new V3(EA.x-EB.x,0,EA.z-EB.z).normalize(),N=new V3(U.z,0,-U.x),at=(t,o)=>BLV.at(t,o);
+  const rotY=v=>Math.atan2(v.x,v.z);   // rotation that turns +z toward v
+  // outside public road (context only — not part of the framed footprint)
+  const R0=at(len+14,-240),R1=at(len+14,220);
+  strip(scene,M.verge,R0.x,R0.z,R1.x,R1.z,30,-0.6,0.62);
+  strip(scene,M.asphalt,R0.x,R0.z,R1.x,R1.z,14,0,0.14);
+  for(let o=-236;o<216;o+=9){const a=at(len+14,o),b=at(len+14,o+4.5);strip(scene,L('#e9c24a'),a.x,a.z,b.x,b.z,0.25,0.14,0.02);}
+  for(let o=-230;o<215;o+=11)[-11.5,11.5].forEach(dt=>{const p=at(len+14+dt,o);if(Math.abs(o)>34)trees.push(new V3(p.x,0,p.z));});
+  // forecourt between the gate and the public road
+  {const a=at(len-1,0),b=at(len+6,0);strip(scene,M.ground,a.x,a.z,b.x,b.z,64,-0.6,0.6);strip(scene,M.lawn,a.x,a.z,b.x,b.z,62,0,0.04);
+   const c=at(len-2,0),e=at(len+6.5,0);strip(scene,M.road,c.x,c.z,e.x,e.z,14,0,0.14);
+   [-1,1].forEach(s=>{const p=at(len+1,s*21);extraFoot.push(at(len+6,s*32));});}
+  // gate portal
+  const stoneDk=L('#bfb29a');
+  [-1,1].forEach(s=>{const a=at(len-3.8,s*9.6),b=at(len-2.2,s*9.6);strip(scene,stoneDk,a.x,a.z,b.x,b.z,1.7,0,8.6).castShadow=true;
+    const c=at(len-3.4,s*9.6),d2=at(len-2.6,s*9.6);strip(scene,M.wood,c.x,c.z,d2.x,d2.z,1.75,1.2,5.6).castShadow=true;});
+  {const a=at(len-3,-10.6),b=at(len-3,10.6);strip(scene,M.stone,a.x,a.z,b.x,b.z,1.8,7.2,1.5).castShadow=true;}
+  const nameTex=textTex((x,W,H)=>{x.fillStyle='#2b3a32';x.font=`700 104px ${TFONT}`;x.textAlign='center';x.textBaseline='middle';x.fillText('โครงการทดสอบ',W/2,H/2+6);},1024,150);
+  {const p=at(len-3+0.92,0),m=new THREE.Mesh(new THREE.PlaneGeometry(15,2.2),new THREE.MeshBasicMaterial({map:nameTex,transparent:true,toneMapped:false}));m.position.set(p.x,7.95,p.z);m.rotation.y=rotY(U);scene.add(m);}
+  // low feature walls with the project name, facing the public road
+  [-1,1].forEach(s=>{const a=at(len+2,s*13),b=at(len+2,s*29);strip(scene,M.stone,a.x,a.z,b.x,b.z,0.9,0,2.6).castShadow=true;
+    const c=at(len+2,s*13.5),d2=at(len+2,s*28.5);strip(scene,M.wood,c.x,c.z,d2.x,d2.z,0.95,2.6,0.25);
+    const mid=at(len+2.47,s*21),m=new THREE.Mesh(new THREE.PlaneGeometry(13,1.9),new THREE.MeshBasicMaterial({map:nameTex,transparent:true,toneMapped:false}));m.position.set(mid.x,1.35,mid.z);m.rotation.y=rotY(U);scene.add(m);
+    for(let k=0;k<5;k++){const p=at(len-0.5,s*(14+k*3.6));box(scene,L('#7aa35f'),p.x,0.04,p.z,1.6,0.9,1.6,true);}});
+  // guardhouse
+  {const g=new THREE.Group(),p=at(len-12,-13.2);g.position.set(p.x,0,p.z);g.rotation.y=rotY(U);scene.add(g);
+   box(g,M.white,0,0,0,3.6,3,5,true);box(g,M.glass,1.84,0.9,0,0.08,1.4,4,false);box(g,M.glass,-1.84,0.9,0,0.08,1.4,4,false);
+   box(g,M.roofSlab,0,3,0,5.2,0.35,6.6,true);box(g,M.wood,0,3.35,0,4.6,0.18,6,true);ao(g,0,0.02,0,7,8.5);}
+  // barrier posts with arms raised (gate open)
+  [-1,1].forEach(s=>{const p=at(len-6,s*7.6);box(scene,M.black,p.x,0.14,p.z,0.6,1.1,0.6,true);
+    const arm=new THREE.Group();arm.position.set(p.x,1.05,p.z);const dir=N.clone().multiplyScalar(-s);arm.rotation.y=-Math.atan2(dir.z,dir.x);scene.add(arm);
+    const piv=new THREE.Group();piv.rotation.z=1.25;arm.add(piv);
+    for(let i=0;i<6;i++)box(piv,i%2?M.white:L('#d0392d'),0.55+i*1.1,-0.08,0,1.1,0.16,0.16,true);});
+  // curbs along the boulevard
+  [-1,1].forEach(s=>{const a=at(4,s*7.15),b=at(len-1,s*7.15);strip(scene,M.curb,a.x,a.z,b.x,b.z,0.28,0,0.2);});
+}
+/* ---------- Trees (instanced) ---------- */
+{
+  const tg=new THREE.CylinderGeometry(0.22,0.32,2.2,6);tg.translate(0,1.1,0);
+  const cg=new THREE.IcosahedronGeometry(1.9,0);cg.translate(0,3.6,0);
+  const ti=new THREE.InstancedMesh(tg,M.trunk,trees.length),ci=new THREE.InstancedMesh(cg,new THREE.MeshStandardMaterial({color:'#ffffff',roughness:0.95}),trees.length);
+  const m4=new THREE.Matrix4(),q=new THREE.Quaternion(),col=new THREE.Color(),greens=['#5c8a57','#6a9660','#4f7a4e','#78a06a'];
+  trees.forEach((p,i)=>{const s=0.8+rand()*0.5;q.setFromAxisAngle(new V3(0,1,0),rand()*6.28);m4.compose(p,q,new V3(s,s,s));ti.setMatrixAt(i,m4);ci.setMatrixAt(i,m4);ci.setColorAt(i,col.set(pick(greens)));});
+  ti.castShadow=ci.castShadow=true;ti.receiveShadow=ci.receiveShadow=true;ti.frustumCulled=ci.frustumCulled=false;scene.add(ti,ci);
+  trees.forEach(p=>ao(scene,p.x,p.y+0.12,p.z,5.2,5.2));
+}
+{ // bake every contact shadow into one instanced mesh
+  scene.updateMatrixWorld(true);
+  const im=new THREE.InstancedMesh(aoGeo,aoMat,aoList.length),m4=new THREE.Matrix4(),loc=new THREE.Matrix4();
+  aoList.forEach((a,i)=>{loc.makeScale(a.sx,1,a.sz);loc.setPosition(a.x,a.y,a.z);m4.multiplyMatrices(a.parent.matrixWorld,loc);im.setMatrixAt(i,m4);});
+  im.renderOrder=-1;im.frustumCulled=false;scene.add(im);
+}
+
+/* ---------- Night mode: moonlight, lit windows, street lamps, headlights ---------- */
+const glowTex=(()=>{const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d');const g=x.createRadialGradient(64,64,4,64,64,64);
+  g.addColorStop(0,'rgba(255,214,150,0.95)');g.addColorStop(0.4,'rgba(255,196,120,0.45)');g.addColorStop(1,'rgba(255,190,110,0)');x.fillStyle=g;x.fillRect(0,0,128,128);
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;})();
+const poolMat=new THREE.MeshBasicMaterial({map:glowTex,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-3});
+const beamMat=poolMat.clone();
+const lampHeadMat=new THREE.MeshBasicMaterial({color:'#c9ccc6',toneMapped:false});
+{ // boulevard + plaza lamps, then build all lamps as instanced meshes
+  for(let t=12;t<BLV.len-18;t+=18)[-7.9,7.9].forEach(o=>lampPts.push(BLV.at(t,o)));
+  [[-24.5,-24.5],[24.5,-24.5],[-24.5,16.5],[24.5,16.5],[-24.5,-4],[24.5,-1]].forEach(([x,z])=>lampPts.push(new V3(x,0,z)));
+  const pole=new THREE.CylinderGeometry(0.07,0.1,4.6,6);pole.translate(0,2.3,0);
+  const head=new THREE.BoxGeometry(0.75,0.16,0.38);head.translate(0,4.62,0);
+  const n=lampPts.length,P=new THREE.InstancedMesh(pole,L('#4e5652',{roughness:0.6,metalness:0.4}),n),H=new THREE.InstancedMesh(head,lampHeadMat,n),G=new THREE.InstancedMesh(aoGeo,poolMat,n);
+  const m4=new THREE.Matrix4(),q=new THREE.Quaternion(),one=new V3(1,1,1);
+  lampPts.forEach((p,i)=>{m4.compose(new V3(p.x,0,p.z),q,one);P.setMatrixAt(i,m4);H.setMatrixAt(i,m4);m4.compose(new V3(p.x,0.17,p.z),q,new V3(11,1,11));G.setMatrixAt(i,m4);});
+  P.castShadow=true;[P,H,G].forEach(o=>{o.frustumCulled=false;scene.add(o);});G.renderOrder=3;
+}
+const NIGHT={sky:new THREE.Color('#6276a6'),gnd:new THREE.Color('#2b2b38'),moon:new THREE.Color('#a9bcff'),tint:new THREE.Color('#3a4660'),head:new THREE.Color('#ffe2a6'),water:new THREE.Color('#1aa3c8')};
+const DAYL={sky:hemi.color.clone(),gnd:hemi.groundColor.clone(),sunC:sun.color.clone(),hemi:hemi.intensity,sun:sun.intensity,head:lampHeadMat.color.clone(),water:M.water.emissive.clone()};
+const WHITE=new THREE.Color(1,1,1),_tint=new THREE.Color(),bgNow=new THREE.Color();
+let night=0,nightT=0;
+function applyNight(k){
+  hemi.color.copy(DAYL.sky).lerp(NIGHT.sky,k);hemi.groundColor.copy(DAYL.gnd).lerp(NIGHT.gnd,k);hemi.intensity=DAYL.hemi+(0.32-DAYL.hemi)*k;
+  sun.color.copy(DAYL.sunC).lerp(NIGHT.moon,k);sun.intensity=DAYL.sun+(0.55-DAYL.sun)*k;
+  _tint.copy(WHITE).lerp(NIGHT.tint,k);backdrop.material.color.copy(_tint);scene.background=bgNow.copy(dayBg).multiply(_tint);
+  const lit=Math.max(0,(k-0.25)/0.75);   // lights come on in the second half of dusk
+  glassList.forEach(m=>m.emissiveIntensity=m.userData.level*lit);
+  M.glass.emissive.set('#ffc477');M.glass.emissiveIntensity=1.3*lit;
+  lampHeadMat.color.copy(DAYL.head).lerp(NIGHT.head,lit);poolMat.opacity=0.85*lit;beamMat.opacity=0.9*lit;
+  M.water.emissive.copy(DAYL.water).lerp(NIGHT.water,lit);M.water.emissiveIntensity=1+0.6*lit;
+}
+/* ---------- Movers: cars and people ---------- */
+function roundCorners(pts,r,closed){
+  const n=pts.length,out=[];
+  for(let i=0;i<n;i++){
+    const c=pts[i];
+    if(!closed&&(i===0||i===n-1)){out.push(c.clone());continue;}
+    const a=pts[(i-1+n)%n],b=pts[(i+1)%n];
+    const din=c.clone().sub(a),dout=b.clone().sub(c);const li=din.length(),lo=dout.length();
+    if(li<1e-3||lo<1e-3){out.push(c.clone());continue;}
+    din.divideScalar(li);dout.divideScalar(lo);
+    const rr=Math.min(r,li/2,lo/2),p0=c.clone().addScaledVector(din,-rr),p2=c.clone().addScaledVector(dout,rr);
+    for(let t=0;t<=1.001;t+=0.25){const u=1-t;out.push(new V3(u*u*p0.x+2*u*t*c.x+t*t*p2.x,0,u*u*p0.z+2*u*t*c.z+t*t*p2.z));}
+  }
+  return out;
+}
+function offsetPath(pts,off,closed){
+  const n=pts.length,out=[];
+  const nrm=v=>new V3(v.z,0,-v.x);
+  for(let i=0;i<n;i++){
+    const c=pts[i],a=closed?pts[(i-1+n)%n]:pts[Math.max(i-1,0)],b=closed?pts[(i+1)%n]:pts[Math.min(i+1,n-1)];
+    let d1=c.clone().sub(a),d2=b.clone().sub(c);
+    if(d1.lengthSq()<1e-6)d1=d2.clone();if(d2.lengthSq()<1e-6)d2=d1.clone();
+    d1.normalize();d2.normalize();
+    const n1=nrm(d1),m=n1.clone().add(nrm(d2));
+    if(m.lengthSq()<1e-4)m.copy(n1);m.normalize();
+    const k=Math.min(off/Math.max(m.dot(n1),0.35),off*2.5);
+    out.push(c.clone().addScaledVector(m,k));
+  }
+  return out;
+}
+class Mover{
+  constructor(obj,pts,o){
+    this.obj=obj;this.pts=pts;this.mode=o.mode||'loop';this.speed=o.speed;this.walk=o.walk;this.segs=[];
+    const n=pts.length,cnt=this.mode==='loop'?n:n-1;let tot=0;
+    for(let i=0;i<cnt;i++){const a=pts[i],b=pts[(i+1)%n],l=a.distanceTo(b);this.segs.push({a,b,l,s:tot});tot+=l;}
+    this.total=tot;this.d=(o.phase||0)*tot*(this.mode==='pingpong'?2:1);this.yaw=null;this.step=rand()*6;
+    this.update(0);
+  }
+  update(dt){
+    this.d+=this.speed*dt;const T=this.total;let s,back=false;
+    if(this.mode==='pingpong'){const p=this.d%(2*T);back=p>T;s=back?2*T-p:p;}else s=this.d%T;
+    let seg=this.segs[this.segs.length-1];
+    for(const g of this.segs){if(s<=g.s+g.l){seg=g;break;}}
+    const t=seg.l?(s-seg.s)/seg.l:0;
+    const pos=seg.a.clone().lerp(seg.b,t),dx=(seg.b.x-seg.a.x)*(back?-1:1),dz=(seg.b.z-seg.a.z)*(back?-1:1);
+    const jump=this.obj.position.distanceTo(pos)>6;
+    this.obj.position.set(pos.x,this.obj.position.y,pos.z);
+    const target=Math.atan2(-dz,dx);
+    if(this.yaw===null||jump)this.yaw=target;
+    else{let df=target-this.yaw;df=Math.atan2(Math.sin(df),Math.cos(df));this.yaw+=df*Math.min(1,dt*(this.walk?9:6));}
+    this.obj.rotation.y=this.yaw;
+    if(this.walk){this.step+=dt*this.speed*4.2;const sw=Math.sin(this.step)*0.55;const u=this.obj.userData;u.l1.rotation.z=sw;u.l2.rotation.z=-sw;u.a1.rotation.z=-sw*0.8;u.a2.rotation.z=sw*0.8;this.obj.position.y=(this.base||0)+Math.abs(Math.cos(this.step))*0.05;}
+  }
+}
+const life=new THREE.Group();scene.add(life);
+const wheelGeo=new THREE.CylinderGeometry(0.38,0.38,0.3,10);wheelGeo.rotateX(Math.PI/2);
+function makeCar(color){
+  const g=new THREE.Group(),body=L(color);
+  box(g,body,0,0.32,0,4.3,0.82,1.9,true);
+  box(g,carGlass,-0.35,1.14,0,2.3,0.62,1.74,true);
+  box(g,body,-0.35,1.74,0,2.1,0.12,1.62,true);
+  [[1.35,0.95],[1.35,-0.95],[-1.35,0.95],[-1.35,-0.95]].forEach(([x,z])=>{const w=new THREE.Mesh(wheelGeo,M.black);w.position.set(x,0.38,z);g.add(w);});
+  box(g,M.lamp,2.13,0.72,0.6,0.06,0.22,0.4);box(g,M.lamp,2.13,0.72,-0.6,0.06,0.22,0.4);
+  {const s=new THREE.Mesh(aoGeo,aoMat);s.scale.set(5.6,1,3.2);s.position.y=0.13;g.add(s);}
+  {const b=new THREE.Mesh(aoGeo,beamMat);b.scale.set(7.5,1,4);b.position.set(5.4,0.14,0);b.renderOrder=2;g.add(b);}
+  g.scale.setScalar(1.25);life.add(g);return g;
+}
+const SKIN=['#e4b892','#c99470','#a8754f','#f0cba6'],SHIRT=['#d9573f','#3f6fa8','#f0c24a','#f4f1ea','#5f9c6c','#8a5aa8','#2b2f33'],PANTS=['#2e3a4a','#4b4038','#6b6f73','#1f2420'];
+function makePerson(){
+  const g=new THREE.Group(),shirt=L(pick(SHIRT)),pants=L(pick(PANTS)),skin=L(pick(SKIN));
+  const limb=(mat,y,z,len,th)=>{const piv=new THREE.Group();piv.position.set(0,y,z);box(piv,mat,0,-len,0,th,len,th,true).position.x=0;g.add(piv);return piv;};
+  const l1=limb(pants,0.9,0.12,0.9,0.19),l2=limb(pants,0.9,-0.12,0.9,0.19);
+  box(g,shirt,0,0.86,0,0.3,0.7,0.48,true);
+  const a1=limb(shirt,1.5,0.31,0.6,0.13),a2=limb(shirt,1.5,-0.31,0.6,0.13);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.17,10,8),skin);head.position.y=1.76;head.castShadow=true;g.add(head);
+  g.userData={l1,l2,a1,a2};g.scale.setScalar(1.7);life.add(g);return g;
+}
+const movers=[];
+const CARC=['#f4f4f1','#c9ccce','#2f4a6e','#b8443a','#d8c39a','#5a6b5e','#3b3f44','#f4f4f1'];
+function carRoute(center,closed,n,speed){
+  let pts=offsetPath(center,1.9,closed);pts=roundCorners(pts,4,closed);
+  for(let i=0;i<n;i++)movers.push(new Mover(makeCar(pick(CARC)),pts,{mode:closed?'loop':'open',speed:speed*(0.9+rand()*0.2),phase:(i+rand()*0.3)/n}));
+}
+const PQ=[new V3(-20,0,-20),new V3(20,0,-20),new V3(20,0,12),new V3(-20,0,12)];
+wings.forEach((w,wi)=>{
+  const f=w.f,d=w.dir,J=i=>wp(f,0,w.lanes[i]),P=i=>wp(f,d*PER,w.lanes[i]);
+  for(let i=0;i<w.lanes.length-1;i++)carRoute([J(i),P(i),P(i+1),J(i+1)],true,1,8);
+  const S0=wp(f,0,0);
+  if(wi===0)carRoute([S0,J(1),P(1),P(0),J(0),S0,new V3(-20,0,3),PQ[0],PQ[1],PQ[2],PQ[3],new V3(-20,0,5)],true,2,9);
+  else carRoute([S0,J(1),P(1),P(2),J(2),S0,new V3(20,0,-9),PQ[2],PQ[3],PQ[0],PQ[1],new V3(20,0,-11)],true,2,9);
+});
+carRoute([EA,EB,new V3(-2,0,12),PQ[3],PQ[0],PQ[1],PQ[2],new V3(2,0,12),EB.clone().add(new V3(1,0,0)),EA.clone().add(new V3(1,0,0))],false,3,10);
+
+function walker(a,b,speed){const m=new Mover(makePerson(),[a,b],{mode:'pingpong',speed,walk:true,phase:rand()});m.base=a.y||0.1;movers.push(m);}
+wings.forEach(w=>{
+  w.lanes.forEach(z=>{[-1,1].forEach(s=>{if(rand()<0.7)walker(wp(w.f,w.dir*8,z+s*4.9),wp(w.f,w.dir*104,z+s*4.9),1.2+rand()*0.6);});});
+  walker(wp(w.f,-5.8*w.dir,w.zmin+8),wp(w.f,-5.8*w.dir,w.zmax-8),1.4);
+});
+[[[-24,-27.2],[22,-27.2],0.1],[[27.5,-24],[27.5,-14],0.1],[[-27.5,-6],[-27.5,14],0.1],[[9,19.6],[26,19.6],0.1],[[-26,19.6],[-9,19.6],0.1],[[-13,6.2],[7,6.2],0.42]].forEach(([a,b,y])=>walker(new V3(a[0],y,a[1]),new V3(b[0],y,b[1]),1+rand()*0.5));
+{const ux=(EA.x-EB.x),uz=(EA.z-EB.z),len=Math.hypot(ux,uz),nx=uz/len,nz=-ux/len;
+ [8.2,-8.2].forEach(o=>walker(new V3(EB.x+nx*o,0,EB.z+nz*o),new V3(EA.x+nx*o,0,EA.z+nz*o),1.5));}
+
+/* ---------- Cameras & controls ---------- */
+const persp=new THREE.PerspectiveCamera(40,1,1,3000);
+const ortho=new THREE.OrthographicCamera(-1,1,1,-1,1,3000);
+const cP=new THREE.OrbitControls(persp,canvas);
+cP.enableDamping=true;cP.dampingFactor=0.08;cP.maxPolarAngle=1.38;cP.minDistance=25;cP.maxDistance=900;cP.autoRotateSpeed=0.6;
+cP.screenSpacePanning=false;cP.panSpeed=1.2;   // pan along the ground plane so the site never drifts into the sky
+if(cP.listenToKeyEvents)cP.listenToKeyEvents(canvas);
+let dragMode='pan';
+function setDrag(m){
+  dragMode=m;const pan=m==='pan';
+  cP.mouseButtons={LEFT:pan?THREE.MOUSE.PAN:THREE.MOUSE.ROTATE,MIDDLE:THREE.MOUSE.DOLLY,RIGHT:pan?THREE.MOUSE.ROTATE:THREE.MOUSE.PAN};
+  cP.touches={ONE:pan?THREE.TOUCH.PAN:THREE.TOUCH.ROTATE,TWO:pan?THREE.TOUCH.DOLLY_ROTATE:THREE.TOUCH.DOLLY_PAN};
+  $('#bPan').setAttribute('aria-pressed',pan);$('#bRot').setAttribute('aria-pressed',!pan);
+  setHints();
+}
+const cO=new THREE.OrbitControls(ortho,canvas);
+cO.enableRotate=false;cO.enableDamping=true;cO.screenSpacePanning=true;cO.minZoom=0.6;cO.maxZoom=10;
+cO.mouseButtons={LEFT:THREE.MOUSE.PAN,MIDDLE:THREE.MOUSE.DOLLY,RIGHT:THREE.MOUSE.PAN};cO.touches={ONE:THREE.TOUCH.PAN,TWO:THREE.TOUCH.DOLLY_PAN};
+let mode='3d',cam=persp;cO.enabled=false;
+function aspect(){return canvas.clientWidth/Math.max(1,canvas.clientHeight);}
+
+/* ---------- Auto-framing: keep the whole village centred in the free screen area ---------- */
+// Footprint = top corners of every ground slab (+ a raised copy so roofs on the edge stay in frame)
+scene.updateMatrixWorld(true);
+const FOOT=[];
+siteGround.forEach(m=>[[-.5,-.5],[.5,-.5],[.5,.5],[-.5,.5]].forEach(([x,z])=>{const v=new V3(x,1,z).applyMatrix4(m.matrixWorld);v.y=0;FOOT.push(v,v.clone().setY(7));}));
+extraFoot.forEach(v=>FOOT.push(v.clone(),v.clone().setY(4)));
+const VIEW_DIR=new V3(0.12,0.72,0.68).normalize();   // default 3D viewing angle (from south-east, ~46° down)
+const GROUND=new THREE.Plane(new V3(0,1,0),0),_ray=new THREE.Raycaster(),_v=new V3(),_n=new THREE.Vector2();
+let atHome=true;   // true until the user moves the camera; resizes/panel changes re-frame only while at home
+// Visible area not covered by floating UI (panel, monitor, toolbar, title card), in canvas pixels
+function safeRect(){
+  const W=canvas.clientWidth,H=canvas.clientHeight,cr=canvas.getBoundingClientRect(),r={l:0,t:0,r:W,b:H};
+  ['.brand','#toolbar','#panel','#monitor','#sales','#info'].forEach(sel=>{
+    const el=$(sel);if(!el||el.hidden)return;const cs=getComputedStyle(el);if(cs.visibility==='hidden'||cs.display==='none')return;
+    const b=el.getBoundingClientRect();if(!b.width||!b.height||b.right<cr.left||b.left>cr.right)return;
+    const x0=b.left-cr.left,x1=b.right-cr.left,y0=b.top-cr.top,y1=b.bottom-cr.top;
+    if(sel==='.brand'){r.t=Math.max(r.t,y1);return;}
+    if(b.width>W*0.55){if(y0>H/2)r.b=Math.min(r.b,y0);else r.t=Math.max(r.t,y1);}
+    else if(b.height>H*0.35){if(x0>W/2)r.r=Math.min(r.r,x0);else r.l=Math.max(r.l,x1);}
+  });
+  const pad=Math.min(28,W*0.04);r.l+=pad;r.r-=pad;r.t+=pad*0.6;r.b-=pad*0.6;
+  if(r.r-r.l<W*0.35){r.l=0;r.r=W;}if(r.b-r.t<H*0.3){r.t=0;r.b=H;}   // UI covers too much: fall back to full canvas
+  r.w=r.r-r.l;r.h=r.b-r.t;r.cx=(r.l+r.r)/2;r.cy=(r.t+r.b)/2;return r;
+}
+// Shift the projection so the orbit target sits in the middle of the free area (rotation pivots there too)
+function applyOffset(c,S){const W=canvas.clientWidth,H=canvas.clientHeight;c.setViewOffset(W,H,W/2-S.cx,H/2-S.cy,W,H);}
+function screenBounds(c){
+  const W=canvas.clientWidth,H=canvas.clientHeight;c.updateMatrixWorld();const b={x0:1e9,x1:-1e9,y0:1e9,y1:-1e9};
+  FOOT.forEach(p=>{_v.copy(p).project(c);const x=(_v.x+1)/2*W,y=(1-_v.y)/2*H;b.x0=Math.min(b.x0,x);b.x1=Math.max(b.x1,x);b.y0=Math.min(b.y0,y);b.y1=Math.max(b.y1,y);});
+  return b;
+}
+function groundAt(c,x,y){const W=canvas.clientWidth,H=canvas.clientHeight;_n.set(x/W*2-1,-(y/H*2-1));_ray.setFromCamera(_n,c);return _ray.ray.intersectPlane(GROUND,new V3());}
+function home3d(){
+  const S=safeRect();applyOffset(persp,S);
+  const c0=new V3();FOOT.forEach(p=>c0.add(p));c0.divideScalar(FOOT.length).setY(0);
+  // Landscape keeps the familiar south-east view. On a tall (portrait) free area, also try viewing
+  // from the east/west so the long axis of the village runs up the screen, and keep whichever is larger.
+  const dirs=[VIEW_DIR];
+  if(S.w/S.h<0.9)dirs.push(VIEW_DIR.clone().applyAxisAngle(new V3(0,1,0),Math.PI/2),VIEW_DIR.clone().applyAxisAngle(new V3(0,1,0),-Math.PI/2));
+  let best=null;dirs.forEach(dir=>{const r=frame3d(S,c0,dir);if(!best||r.d<best.d)best=r;});
+  persp.position.copy(best.p);persp.lookAt(best.t);return best;
+}
+function frame3d(S,c0,dir){
+  const tgt=c0.clone();
+  const pose=d=>{persp.position.copy(tgt).addScaledVector(dir,d);persp.lookAt(tgt);};
+  let d=400;
+  for(let it=0;it<4;it++){
+    let lo=40,hi=3000;   // smallest distance at which the footprint fits the free area
+    for(let i=0;i<24;i++){const m=(lo+hi)/2;pose(m);const b=screenBounds(persp);(b.x1-b.x0<=S.w&&b.y1-b.y0<=S.h)?hi=m:lo=m;}
+    d=hi;pose(d);
+    // perspective makes the near side look bigger: slide the target so the on-screen footprint is centred
+    const b=screenBounds(persp),g0=groundAt(persp,S.cx,S.cy),g1=groundAt(persp,(b.x0+b.x1)/2,(b.y0+b.y1)/2);
+    if(!g0||!g1)break;const shift=g1.sub(g0);if(shift.length()<0.05)break;tgt.add(shift);
+  }
+  pose(d);return{t:tgt.clone(),p:persp.position.clone(),d};
+}
+function home2d(){
+  const S=safeRect();applyOffset(ortho,S);
+  let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;FOOT.forEach(p=>{x0=Math.min(x0,p.x);x1=Math.max(x1,p.x);z0=Math.min(z0,p.z);z1=Math.max(z1,p.z);});
+  const H=canvas.clientHeight,ppu=Math.min(S.w/(x1-x0),S.h/(z1-z0)),zoom=ppu*2*ortho.top/H;
+  cO.minZoom=Math.min(0.6,zoom*0.8);
+  return{t:new V3((x0+x1)/2,0,(z0+z1)/2),zoom};
+}
+function fit3d(anim){
+  const p0=persp.position.clone(),t0=cP.target.clone(),h=home3d();
+  cP.maxDistance=Math.max(900,h.d*1.5);atHome=true;
+  if(anim&&!reduced){persp.position.copy(p0);fly={c:cP,cam:persp,t0,p0,t1:h.t,p1:h.p,k:0};}
+  else{fly=null;persp.position.copy(h.p);cP.target.copy(h.t);cP.update();}
+}
+function fit2d(anim){
+  const h=home2d(),p1=new V3(h.t.x,600,h.t.z+0.01);atHome=true;
+  if(anim&&!reduced)fly={c:cO,cam:ortho,t0:cO.target.clone(),p0:ortho.position.clone(),t1:h.t,p1,z0:ortho.zoom,z1:h.zoom,k:0};
+  else{fly=null;ortho.position.copy(p1);ortho.zoom=h.zoom;ortho.updateProjectionMatrix();cO.target.copy(h.t);cO.update();}
+}
+// Re-frame after layout changes (resize, monitor open/close, mobile panel toggle)
+function relayout(){
+  if(atHome){fit3d(false);fit2d(false);}
+  else{const S=safeRect();applyOffset(persp,S);applyOffset(ortho,S);}
+}
+function reoffset(){const S=safeRect();applyOffset(persp,S);applyOffset(ortho,S);}   // shift the view centre when a side card opens/closes
+cP.addEventListener('start',()=>{atHome=false;});cO.addEventListener('start',()=>{atHome=false;});
+function resize(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);
+  const a=w/Math.max(1,h);persp.aspect=a;persp.updateProjectionMatrix();
+  const H=Math.max(150,205/a)+8;ortho.left=-H*a;ortho.right=H*a;ortho.top=H;ortho.bottom=-H;ortho.updateProjectionMatrix();
+}
+let fly=null;
+resize();fit3d();fit2d();
+let relayoutT=0;const relayoutSoon=(ms)=>{clearTimeout(relayoutT);relayoutT=setTimeout(relayout,ms||120);};
+addEventListener('resize',()=>{resize();relayoutSoon();});
+
+function setMode(m){
+  mode=m;cam=m==='3d'?persp:ortho;cP.enabled=m==='3d';cO.enabled=m==='2d';
+  $('#b3d').setAttribute('aria-pressed',m==='3d');$('#b2d').setAttribute('aria-pressed',m==='2d');
+  $('#bSpin').disabled=m==='2d';$('#bSpin').style.opacity=m==='2d'?0.45:1;
+  $('#dragSeg').style.opacity=m==='2d'?0.45:1;document.querySelectorAll('#dragSeg button').forEach(b=>b.disabled=m==='2d');
+  setHints();
+}
+function setHints(){
+  $('#hints').textContent=mode==='3d'?(dragMode==='pan'?'ลากเพื่อเลื่อน · คลิกขวา/Shift+ลากเพื่อหมุน':'ลากเพื่อหมุน · คลิกขวา/Shift+ลากเพื่อเลื่อน')+' · Scroll ซูม · คลิกบ้าน/หมุดเพื่อดูรายละเอียด':'ลากเพื่อเลื่อน · Scroll เพื่อซูม · คลิกแปลง/หมุดเพื่อดูรายละเอียด';
+}
+$('#bPan').onclick=()=>setDrag('pan');$('#bRot').onclick=()=>setDrag('rotate');
+setDrag('pan');
+$('#b3d').onclick=()=>setMode('3d');$('#b2d').onclick=()=>setMode('2d');
+$('#bReset').onclick=()=>{mode==='3d'?fit3d(true):fit2d(true);};
+$('#bSpin').onclick=e=>{cP.autoRotate=!cP.autoRotate;e.currentTarget.setAttribute('aria-pressed',cP.autoRotate);};
+let lifeOn=true;
+$('#bNight').onclick=e=>{nightT=nightT?0:1;e.currentTarget.setAttribute('aria-pressed',!!nightT);e.currentTarget.querySelector('.lbl').textContent=nightT?'กลางวัน':'กลางคืน';};
+$('#bLife').onclick=e=>{lifeOn=!lifeOn;life.visible=lifeOn;e.currentTarget.setAttribute('aria-pressed',lifeOn);};
+setMode('3d');
+
+/* ---------- Panel ---------- */
+const counts={};ORDER.forEach(k=>counts[k]=plots.filter(p=>p.status===k).length);
+$('#total').textContent=plots.length;$('#kTransferred').textContent=counts.transferred;$('#kBuilt').textContent=counts.stock;
+$('#stack').innerHTML=ORDER.map(k=>`<i style="flex:${counts[k]};background:${STATUS[k].color}"></i>`).join('');
+let focus=null;
+let lensOn=false,lensMat=null;   // sales lens recolours roofs by opportunity
+$('#legend').innerHTML=ORDER.map(k=>`<li><button data-k="${k}" aria-pressed="false"><span class="sw${k==='vacant'?' dash':''}" style="background:${STATUS[k].color}"></span><span class="lg-t">${STATUS[k].label}<small>${STATUS[k].sub}</small></span><span class="lg-n">${counts[k]}</span></button></li>`).join('');
+$('#legend').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;setFocus(focus===b.dataset.k?null:b.dataset.k);});
+function setFocus(k){
+  focus=k;
+  document.querySelectorAll('#legend button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.k===k));
+  const sosOn=on('sos');
+  plots.forEach(p=>{
+    if(lensOn&&lensMat){const mt=lensMat(p);p.parts.forEach(m=>m.material=mt);if(p!==selected)p.slab.material=M.plot;return;}
+    const lit=!k||p.status===k;p.parts.forEach(m=>m.material=p.sos&&sosOn?sosMat:lit?statusMat[p.status]:M.dim);if(p!==selected)p.slab.material=(k&&lit)?M.plotHi:M.plot;});
+}
+const panel=$('#panel');
+if(matchMedia('(max-width:760px)').matches){panel.classList.add('collapsed');$('#panelToggle').textContent='แสดง';$('#panelToggle').setAttribute('aria-expanded','false');}
+$('#panelToggle').onclick=()=>{const c=panel.classList.toggle('collapsed');$('#panelToggle').textContent=c?'แสดง':'ซ่อน';$('#panelToggle').setAttribute('aria-expanded',!c);relayoutSoon(30);};
+
+/* ---------- Picking ---------- */
+const ray=new THREE.Raycaster(),ndc=new THREE.Vector2(),tip=$('#tip');
+const pin=new THREE.Group();
+{const c=new THREE.Mesh(new THREE.ConeGeometry(1.1,3,14),M.pin);c.rotation.x=Math.PI;c.position.y=1.5;const s=new THREE.Mesh(new THREE.SphereGeometry(1.5,16,12),M.pin);s.position.y=3.6;const dot=new THREE.Mesh(new THREE.SphereGeometry(0.6,12,10),new THREE.MeshBasicMaterial({color:'#ffffff'}));dot.position.set(0,3.6,0);dot.scale.set(1,1,1);pin.add(c,s,dot);pin.visible=false;scene.add(pin);}
+let selected=null;
+// returns the userData of what is under the pointer: {plot} for houses, {poi,k} for common-area markers
+function hit(ev){const r=canvas.getBoundingClientRect();ndc.set((ev.clientX-r.left)/r.width*2-1,-(ev.clientY-r.top)/r.height*2+1);ray.setFromCamera(ndc,cam);const h=ray.intersectObjects(markerList,false)[0]||ray.intersectObjects(pickables,false)[0];return h?h.object.userData:null;}
+function select(p){
+  if(selected)selected.slab.material=M.plot;
+  selected=p;
+  if(!p){$('#info').hidden=true;pin.visible=false;setFocus(focus);reoffset();return;}
+  p.slab.material=M.plotHi;pin.visible=true;pin.position.set(p.world.x,0,p.world.z);
+  const S=STATUS[p.status];
+  $('#iCode').textContent=p.code;$('#iStatus').textContent=S.label+' · '+S.sub;$('#iSw').style.background=S.color;$('#iSw').className='sw'+(p.status==='vacant'?' dash':'');
+  $('#iType').textContent=p.status==='vacant'?'ยังไม่กำหนด':p.type;$('#iLand').textContent=p.land+' ตร.ว.';$('#iUse').textContent=p.status==='vacant'?'-':p.use+' ตร.ม.';$('#iLane').textContent=p.lane;
+  $('#iExtra').innerHTML=houseDetail(p);tick();
+  $('#info').hidden=false;reoffset();
+}
+$('#closeInfo').onclick=()=>select(null);
+let down=null;
+canvas.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY};fly=null;});
+canvas.addEventListener('pointerup',e=>{
+  if(down&&Math.hypot(e.clientX-down.x,e.clientY-down.y)<6){const u=hit(e);if(u&&u.poi)onPoi(u.poi,u.k);else select(u&&u.plot||null);}
+  down=null;
+});
+let hoverEv=null;
+canvas.addEventListener('pointermove',e=>{if(e.pointerType==='mouse')hoverEv=e;});
+canvas.addEventListener('pointerleave',()=>{hoverEv=null;tip.hidden=true;canvas.style.cursor='';});
+function poiTip(o,k){
+  if(k==='maint')return`<b>${o.id}</b>${o.title} · ${MST[maintState(o)]}`;
+  if(k==='pet')return`<b>${pet.name}</b>ตรวจพบล่าสุด ${petLast().cam.id}`;
+  if(k==='rogue')return`<b>${o.plate}</b>${RK[o.kind]}`;
+  if(k==='ai')return`<b>${o.id}</b>${AIT[o.type]} · ${o.cam.id}`;
+  if(k==='gate')return`<b>ป้อมหน้า</b>ไม้กั้นขาออกล็อก · รถกันขโมย`;
+  if(k.startsWith('sen'))return`<b>${o.id}</b>${SENT[o.type]} ${fmtSen(o)} ${o.unit}`;
+  return`<b>${o.id}</b>${o.name}${o.offline?' · ออฟไลน์':' · กดเพื่อดูภาพสด'}`;
+}
+function hover(){
+  if(!hoverEv)return;const e=hoverEv;hoverEv=null;
+  if(e.buttons){tip.hidden=true;return;}
+  const u=hit(e);canvas.style.cursor=u?'pointer':'';
+  if(!u){tip.hidden=true;return;}
+  if(u.poi)tip.innerHTML=poiTip(u.poi,u.k);
+  else{
+    const p=u.plot,al=p.sos&&on('sos')?' · SOS':on('visitors')&&p.visitors&&p.visitors.length?` · ผู้ติดต่อ ${p.visitors.length}`:'';
+    tip.innerHTML=`<b>${p.code}</b>${STATUS[p.status].label}${al}`;
+  }
+  tip.style.left=e.clientX+'px';tip.style.top=e.clientY+'px';tip.hidden=false;
+}
+
+/* ---------- Map markers ---------- */
+const ICON={
+  sos:'M12 3l9 16H3z M12 10v4 M12 17v.5',
+  guest:'M12 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z M5 20c.8-3.5 3.6-5.5 7-5.5s6.2 2 7 5.5',
+  taxi:'M4 16l1.6-4.6A2 2 0 0 1 7.5 10h9a2 2 0 0 1 1.9 1.4L20 16v3H4z M10 6.5h4V10h-4z M7 19v1.5 M17 19v1.5 M4 16h16',
+  food:'M3 12h18a9 9 0 0 1-18 0z M9 8c0-1.5 1.2-1.5 1.2-3 M13.5 8c0-1.5 1.2-1.5 1.2-3',
+  parcel:'M3 7.5l9-4.5 9 4.5v9L12 21l-9-4.5z M3 7.5l9 4.5 9-4.5 M12 12v9 M7.5 5.2l9 4.6',
+  service:'M14.5 5.5a4 4 0 0 0 4.9 4.9L11 18.8a2.1 2.1 0 0 1-3-3l8.4-8.4z M5 5l3 3',
+  car:'M4 16l1.6-4.6A2 2 0 0 1 7.5 10h9a2 2 0 0 1 1.9 1.4L20 16v3H4z M7 19v1.5 M17 19v1.5 M4 16h16',
+  cam:'M3 8h11v8H3z M14 11l6-3v8l-6-3',
+  paw:'M12 13.5c-3 0-5.5 2.6-5.5 4.6 0 1.6 1.6 2.2 5.5 2.2s5.5-.6 5.5-2.2c0-2-2.5-4.6-5.5-4.6z M4.2 10.5a1.8 2.1 0 1 0 3.6 0a1.8 2.1 0 1 0-3.6 0 M8.2 5.8a1.8 2.1 0 1 0 3.6 0a1.8 2.1 0 1 0-3.6 0 M12.2 5.8a1.8 2.1 0 1 0 3.6 0a1.8 2.1 0 1 0-3.6 0 M16.2 10.5a1.8 2.1 0 1 0 3.6 0a1.8 2.1 0 1 0-3.6 0',
+  eye:'M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z M9 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0',
+  lock:'M5.5 11h13v9.5h-13z M8.5 11V8a3.5 3.5 0 0 1 7 0v3 M12 14.5v2.5',
+  gauge:'M3.5 17a8.5 8.5 0 1 1 17 0 M12 17l4.2-5.2 M7 13.5l-1-.6 M12 10V8.8 M17 13.5l1-.6',
+  tl:'M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0 M12 7v5l3.5 2',
+};
+const svg=k=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${ICON[k]||ICON.tl}"/></svg>`;
+const MK={sos:{col:'#d23b2f',size:11},warn:{col:'#e08a12',size:9},visit:{col:'#3f6fa8',size:6.5,icon:'car'},
+  maint:{col:'#7a52b3',size:8,icon:'service'},cctv:{col:'#3d4a52',size:5,icon:'cam'},cctvOff:{col:'#9a9f9c',size:5,icon:'cam'},pet:{col:'#d0457f',size:10,icon:'paw'},
+  rogue:{col:'#8b2c4a',size:8,icon:'car'},ai:{col:'#13808a',size:7.5,icon:'eye'},gate:{col:'#d23b2f',size:10,icon:'lock'},
+  sen_ok:{col:'#3f8a5a',size:4.5,icon:'gauge'},sen_warn:{col:'#e08a12',size:5.5,icon:'gauge'},sen_crit:{col:'#d23b2f',size:6.5,icon:'gauge'}};
+const texCache={};
+function markerTex(k){
+  if(texCache[k])return texCache[k];
+  const c=document.createElement('canvas');c.width=128;c.height=160;const x=c.getContext('2d');
+  x.fillStyle=MK[k].col;x.beginPath();x.moveTo(38,96);x.lineTo(64,154);x.lineTo(90,96);x.fill();
+  x.beginPath();x.arc(64,60,56,0,7);x.fill();
+  x.lineWidth=7;x.strokeStyle='#fff';x.beginPath();x.arc(64,60,50,0,7);x.stroke();
+  x.fillStyle='#fff';x.textAlign='center';x.textBaseline='middle';
+  if(k==='sos'){x.font='800 36px system-ui,sans-serif';x.fillText('SOS',64,62);}
+  else if(k==='warn'){x.font='900 66px system-ui,sans-serif';x.fillText('!',64,64);}
+  else{x.save();x.translate(64-33,60-34);x.scale(2.75,2.75);x.lineWidth=2.2;x.strokeStyle='#fff';x.lineCap=x.lineJoin='round';x.stroke(new Path2D(ICON[MK[k].icon]));x.restore();}
+  if(k==='cctvOff'){x.strokeStyle='#d23b2f';x.lineWidth=9;x.beginPath();x.moveTo(30,26);x.lineTo(98,94);x.stroke();}
+  if(k==='rogue'){x.fillStyle='#fff';x.beginPath();x.arc(98,22,20,0,7);x.fill();x.fillStyle=MK[k].col;x.font='900 30px system-ui,sans-serif';x.fillText('?',98,24);}
+  const t=new THREE.CanvasTexture(c);t.anisotropy=4;t.colorSpace=THREE.SRGBColorSpace;return texCache[k]=t;
+}
+const markers=new THREE.Group();scene.add(markers);
+const ringGeo=new THREE.RingGeometry(5.2,6.4,40);ringGeo.rotateX(-Math.PI/2);
+const ringMat=new THREE.MeshBasicMaterial({toneMapped:false,color:'#e0443a',transparent:true,depthWrite:false,side:THREE.DoubleSide});
+const markerList=[],rings=[];
+function poiMarker(k,pos,poi,y){
+  const m=new THREE.Sprite(new THREE.SpriteMaterial({map:markerTex(k),depthTest:false,transparent:true,toneMapped:false}));
+  m.center.set(0.5,0);m.renderOrder=11;m.position.set(pos.x,y,pos.z);m.userData={poi,k};markers.add(m);return m;
+}
+function setMarkerKind(m,k){if(m.userData.k!==k){m.material.map=markerTex(k);m.material.needsUpdate=true;m.userData.k=k;}}
+const spotOf=c=>c.look.clone().lerp(c.pos,0.3);
+maint.forEach(m=>m.marker=poiMarker('maint',m.pos,m,4));
+cams.forEach(c=>c.marker=poiMarker(c.offline?'cctvOff':'cctv',c.pos,c,c.h+1.2));
+pet.marker=poiMarker('pet',new V3(),pet,4.5);
+const gateMarker=poiMarker('gate',GATE_POS,{id:'gate'},6);
+sensors.forEach(s=>s.marker=poiMarker('sen_'+senLevel(s),s.pos,s,3.4));
+function addRogueCar(r){const c=makeCar(r.color);c.position.set(r.pos.x,0.14,r.pos.z);c.rotation.y=r.yaw;rogueG.add(c);r.car=c;r.marker=poiMarker('rogue',r.pos,r,4.6);}
+rogues.forEach(addRogueCar);
+const houseAlert=p=>p.sos&&on('sos')?'sos':!on('visitors')?null:p.visitors.some(isLong)?'warn':p.visitors.length?'visit':null;
+function refreshMarkers(){
+  markerList.length=0;rings.length=0;
+  const show=(m,v)=>{m.visible=v;if(v)markerList.push(m);};
+  homes.forEach(p=>{
+    const k=houseAlert(p);
+    if(p.ring)p.ring.visible=k==='sos';
+    if(!k){if(p.marker)p.marker.visible=false;return;}
+    if(!p.marker){
+      const m=new THREE.Sprite(new THREE.SpriteMaterial({depthTest:false,transparent:true,toneMapped:false}));
+      m.center.set(0.5,0);m.renderOrder=10;m.userData.plot=p;m.position.set(p.world.x,10.5,p.world.z);markers.add(m);p.marker=m;
+    }
+    setMarkerKind(p.marker,k);show(p.marker,true);
+    if(k==='sos'){
+      if(!p.ring){p.ring=new THREE.Mesh(ringGeo,ringMat);p.ring.position.set(p.world.x,0.25,p.world.z);markers.add(p.ring);}
+      p.ring.visible=true;rings.push(p.ring);
+    }
+  });
+  maint.forEach(m=>show(m.marker,on('maint')&&maintState(m)!=='done'));
+  cams.forEach(c=>show(c.marker,on('cctv')));
+  show(pet.marker,on('pet')&&pet.status==='lost');
+  rogues.forEach(r=>{const v=on('rogue')&&r.state==='open';r.car.visible=v;show(r.marker,v);});
+  aiList.forEach((a,i)=>{
+    if(!a.marker){const sp=spotOf(a.cam);a.marker=poiMarker('ai',sp.add(new V3((i%3-1)*2.5,0,0)),a,6.5);}
+    show(a.marker,on('ai')&&a.state!=='closed');
+  });
+  show(gateMarker,on('antitheft')&&gateAlerts.some(a=>a.state==='blocked'));
+  sensors.forEach(s=>{setMarkerKind(s.marker,'sen_'+senLevel(s));show(s.marker,on('sensors'));});
+  coneG.visible=on('maint');camG.visible=on('cctv');sensorG.visible=on('sensors');rogueG.visible=on('rogue');
+}
+
+/* ---------- Lost pet: placement, trail, movement ---------- */
+const petCenter=new V3();
+const trailG=new THREE.Group();markers.add(trailG);
+const trailMat=new THREE.LineDashedMaterial({color:'#d0457f',dashSize:3,gapSize:2,depthTest:false,transparent:true}),trailDot=new THREE.MeshBasicMaterial({color:'#d0457f',depthTest:false,transparent:true,opacity:0.8});
+function placePet(){
+  const lost=pet.status==='lost'&&on('pet');dog.visible=trailG.visible=lost;
+  while(trailG.children.length)trailG.remove(trailG.children[0]);
+  if(!lost)return;
+  petCenter.copy(spotOf(petLast().cam));pet.marker.position.set(petCenter.x,4.5,petCenter.z);dog.position.set(petCenter.x,0.14,petCenter.z);
+  const pts=pet.sightings.map(s=>spotOf(s.cam).setY(0.6));
+  const ln=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),trailMat);ln.computeLineDistances();ln.renderOrder=9;trailG.add(ln);
+  pts.slice(0,-1).forEach(p=>{const d=new THREE.Mesh(new THREE.CircleGeometry(1.4,20),trailDot);d.rotation.x=-Math.PI/2;d.position.copy(p);d.renderOrder=9;trailG.add(d);});
+}
+function movePet(){
+  if(pet.status!=='lost'||!on('pet'))return;
+  const cur=petLast().cam.id,i=PET_ROUTE.indexOf(cur),c=camById(PET_ROUTE[(i+1)%PET_ROUTE.length]);
+  pet.sightings.push({cam:c,at:Date.now(),conf:0.82+r2()*0.15});
+  logEvent(Date.now(),'pet','info','paw',`AI ตรวจพบ "${pet.name}" ที่ ${c.id} ${c.name}`,{cam:c});
+  placePet();refreshAll();
+  toast(`🐾 ตรวจพบ "${pet.name}" ที่ ${c.id} · ${c.name}`,'pet');
+}
+setInterval(movePet,40000);
+
+/* ---------- Camera fly-to ---------- */
+function flyToPos(v){
+  atHome=false;
+  const to=new V3(v.x,0,v.z);
+  if(mode==='3d'){const off=persp.position.clone().sub(cP.target);off.setLength(Math.min(off.length(),170));fly={c:cP,cam:persp,t0:cP.target.clone(),p0:persp.position.clone(),t1:to,p1:to.clone().add(off),k:0};}
+  else fly={c:cO,cam:ortho,t0:cO.target.clone(),p0:ortho.position.clone(),t1:to,p1:new V3(to.x,600,to.z+0.01),z0:ortho.zoom,z1:Math.max(ortho.zoom,2.4),k:0};
+  if(reduced)fly.k=0.999;
+}
+const flyTo=p=>flyToPos(p.world);
+
+/* ---------- House detail (residents / vehicles / visitors) ---------- */
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function dur(ms){const m=Math.max(0,Math.floor(ms/MIN));if(m<1)return'< 1 นาที';if(m<60)return m+' นาที';if(m<1440)return Math.floor(m/60)+' ชม. '+(m%60)+' นาที';return Math.floor(m/1440)+' วัน '+Math.floor(m%1440/60)+' ชม.';}
+const allVeh=homes.flatMap(p=>p.vehicles);allVeh.forEach((v,i)=>v.vid=i);
+const occupant=p=>p.residents.find(r=>r.role!=='owner'||!r.note);
+function houseDetail(p){
+  if(!p.residents)return'';
+  let h='';
+  if(p.sos&&on('sos'))h+=`<div class="alert-box"><b>SOS · ${SOSK[p.sos.kind]}</b><span>${p.sos.state==='new'?'รอรับเรื่อง':'เจ้าหน้าที่กำลังเข้าตรวจสอบ'} · แจ้งเมื่อ <span data-since="${p.sos.since}"></span>ที่แล้ว</span></div>`;
+  if(pet.house===p&&pet.status==='lost'&&on('pet'))h+=`<div class="alert-box pet"><b>แจ้งสัตว์เลี้ยงหาย · ${pet.species} "${pet.name}"</b><span>ตรวจพบล่าสุดที่ ${petLast().cam.id} ${petLast().cam.name}</span></div>`;
+  if(on('residents')){
+    h+=`<div class="sec"><div class="sec-t">ผู้พักอาศัย <small>${p.occupancy}</small></div><ul class="rows">${p.residents.map(r=>`<li><span><b>${esc(r.name)}</b><small>${[r.phone,r.note].filter(Boolean).join(' · ')||'&nbsp;'}</small></span><span class="tag ${r.role}">${ROLE[r.role]}</span></li>`).join('')}</ul></div>`;
+    const inCnt=p.vehicles.filter(v=>v.inside).length;
+    h+=`<div class="sec"><div class="sec-t">รถลูกบ้าน <small>อยู่ในโครงการ ${inCnt}/${p.vehicles.length}</small></div><ul class="rows">${p.vehicles.length?p.vehicles.map(v=>`<li><span><b class="plate">${v.plate}</b><small>${v.prov} · ${v.model} สี${v.color}</small></span><span class="v-side"><span class="tag ${v.inside?'in':'out'}">${v.inside?'อยู่ในโครงการ':'ไม่อยู่'}</span>${on('antitheft')&&v.inside?`<button class="lockbtn" data-vid="${v.vid}" aria-pressed="${!!v.lock}">${svg('lock')}${v.lock?'กันขโมย: เปิด':'กันขโมย'}</button>`:''}</span></li>`).join(''):'<li class="empty">ไม่มีรถลงทะเบียน</li>'}</ul></div>`;
+  }
+  if(on('visitors')&&p.visitors.length)h+=`<div class="sec"><div class="sec-t">รถผู้ติดต่อ <small>${p.visitors.length} คัน</small></div><ul class="rows">${p.visitors.map(v=>{const lg=isLong(v);return`<li><span><b class="plate">${v.plate}</b><small>${VT[v.type].label} · ${esc(v.who)}</small></span><span class="tag ${lg?'warn':'visit'}"><span data-since="${v.since}"></span></span></li>`;}).join('')}</ul></div>`;
+  if(on('sales')&&p.biz)h+=salesDetail(p);
+  return h;
+}
+function setLock(v,lock){
+  v.lock=lock;v.lockAt=Date.now();
+  logEvent(Date.now(),'antitheft','info','lock',`บ้าน ${v.house.code} ${lock?'เปิด':'ปิด'}โหมดกันขโมย ${v.plate}`,{house:v.house});
+  toast(`${lock?'🔒 เปิด':'ปิด'}โหมดกันขโมย ${v.plate} (บ้าน ${v.house.code})`);refreshAll();
+}
+$('#iExtra').addEventListener('click',e=>{const b=e.target.closest('.lockbtn');if(!b)return;const v=allVeh[+b.dataset.vid];setLock(v,!v.lock);});
+
+/* ---------- CCTV viewer (renders the live scene from the pole's viewpoint) ---------- */
+const ccBox=$('#cctv'),ccC=$('#ccC');
+let ccR=null,curCam=null;
+const ccCam=new THREE.PerspectiveCamera(60,16/9,0.5,900),petBox=new THREE.Box3();
+$('#ccSel').innerHTML=cams.map(c=>`<option value="${c.id}">${c.id} · ${c.name}${c.offline?' (ออฟไลน์)':''}</option>`).join('');
+function sizeCam(){
+  if(!ccR||!curCam)return;
+  const w=ccC.clientWidth,h=ccC.clientHeight;ccR.setSize(w,h,false);ccCam.aspect=w/Math.max(1,h);ccCam.updateProjectionMatrix();
+}
+function openCam(c){
+  if(!on('cctv'))return;
+  curCam=c;ccBox.hidden=false;
+  if(!ccR){ccR=new THREE.WebGLRenderer({canvas:ccC,antialias:true});ccR.shadowMap.enabled=true;ccR.toneMapping=renderer.toneMapping;ccR.toneMappingExposure=renderer.toneMappingExposure;ccR.setPixelRatio(Math.min(window.devicePixelRatio||1,2));}
+  $('#ccTitle').textContent=c.id+' · '+c.name;$('#ccId').textContent=c.id;$('#ccSel').value=c.id;
+  $('#ccNo').hidden=!c.offline;
+  // sit just ahead of the housing so the pole's own lens box doesn't block the view
+  const fw=c.look.clone().sub(c.pos).setY(0).normalize();
+  ccCam.position.set(c.pos.x+fw.x*2.2,c.h-0.5,c.pos.z+fw.z*2.2);ccCam.lookAt(c.look.x,0.6,c.look.z);
+  sizeCam();tickCam();
+}
+function closeCam(){curCam=null;ccBox.hidden=true;}
+function stepCam(d){const i=cams.indexOf(curCam);openCam(cams[(i+d+cams.length)%cams.length]);}
+function tickCam(){
+  if(!curCam)return;
+  $('#ccTime').textContent=new Date().toLocaleString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  // analytics overlay for this camera
+  const lines=[];
+  if(on('ai'))aiList.filter(a=>a.cam===curCam&&a.state!=='closed').forEach(a=>lines.push(`AI · ${AIT[a.type]} ${Math.round(a.conf*100)}%`));
+  if(on('rogue'))rogues.filter(r=>r.cam===curCam.id&&r.state==='open').forEach(r=>lines.push(`LPR · ${r.plate} ${RK[r.kind]}`));
+  if(on('antitheft')&&curCam.id==='CAM-01')gateAlerts.filter(a=>a.state==='blocked').forEach(a=>lines.push(`กันขโมย · ${a.veh.plate} ห้ามออก`));
+  const el=$('#ccAI');el.innerHTML=lines.map(esc).join('<br>');el.hidden=!lines.length||curCam.offline;
+}
+$('#ccClose').onclick=closeCam;$('#ccPrev').onclick=()=>stepCam(-1);$('#ccNext').onclick=()=>stepCam(1);
+$('#ccSel').onchange=e=>openCam(camById(e.target.value));
+$('#ccMap').onclick=()=>{if(curCam)flyToPos(curCam.pos);};
+addEventListener('keydown',e=>{if(e.key==='Escape'){if(curCam)closeCam();if(!setBox.hidden)setBox.hidden=true;}});
+addEventListener('resize',sizeCam);
+function renderCam(){
+  if(!curCam||curCam.offline)return;
+  const mv=markers.visible,pv=pin.visible;markers.visible=false;pin.visible=false;
+  ccR.render(scene,ccCam);
+  markers.visible=mv;pin.visible=pv;
+  // detection overlay: project the dog's bounding box into the feed when this camera is the latest sighting
+  const det=$('#ccDet'),show=on('pet')&&pet.status==='lost'&&petLast().cam===curCam;
+  if(!show){det.hidden=true;return;}
+  petBox.setFromObject(dog);
+  let x0=1,y0=1,x1=-1,y1=-1,front=true;
+  for(let i=0;i<8;i++){const v=new V3(i&1?petBox.max.x:petBox.min.x,i&2?petBox.max.y:petBox.min.y,i&4?petBox.max.z:petBox.min.z).project(ccCam);if(v.z>1)front=false;x0=Math.min(x0,v.x);x1=Math.max(x1,v.x);y0=Math.min(y0,v.y);y1=Math.max(y1,v.y);}
+  if(!front||x1<-1||x0>1||y1<-1||y0>1){det.hidden=true;return;}
+  const W=ccC.clientWidth,H=ccC.clientHeight,pad=6;
+  det.style.left=((x0+1)/2*W-pad)+'px';det.style.top=((1-y1)/2*H-pad)+'px';det.style.width=((x1-x0)/2*W+pad*2)+'px';det.style.height=((y1-y0)/2*H+pad*2)+'px';
+  det.firstElementChild.textContent=`${pet.species} "${pet.name}" · ${Math.round(petLast().conf*100)}%`;det.hidden=false;
+}
+
+/* ---------- Sensors + weather (live drift) ---------- */
+const fmtSen=s=>s.type==='pm'||s.type==='noise'?Math.round(s.val):s.val.toFixed(0);
+const LVT={ok:'ปกติ',warn:'เฝ้าระวัง',crit:'วิกฤต'},LVC={ok:'in',warn:'ack',crit:'new'};
+function sparkPts(s){const lo=Math.min(...s.hist,s.warn*0.6),hi=Math.max(...s.hist,s.warn);return s.hist.map((v,i)=>`${(i/(s.hist.length-1)*120).toFixed(1)},${(26-(v-lo)/(hi-lo||1)*24).toFixed(1)}`).join(' ');}
+function sensorTick(){
+  let changed=false;
+  sensors.forEach(s=>{
+    const before=senLevel(s);
+    if(s.trend){s.val+=s.trend+(r2()-0.5)*0.6;if(s.val>=86)s.trend=-0.3;if(s.val<=62)s.trend=0.35;}
+    else s.val+=(s.base-s.val)*0.12+(r2()-0.5)*s.base*0.04;
+    s.hist.push(s.val);s.hist.shift();
+    const after=senLevel(s);
+    if(after!==before){
+      changed=true;
+      const sev=after==='crit'?'crit':after==='warn'?'warn':'info';
+      logEvent(Date.now(),'sensors',sev,'gauge',`${s.id} ${SENT[s.type]}${after==='ok'?'กลับสู่ระดับปกติ':after==='crit'?'ถึงระดับวิกฤต':'สูงกว่าเกณฑ์'} ${fmtSen(s)} ${s.unit} · ${s.name}`,{pos:s.pos});
+      if(after==='crit'&&on('sensors'))toast(`⚠️ ${s.id} ${SENT[s.type]}วิกฤต ${fmtSen(s)} ${s.unit} · ${s.name}`,'sos');
+    }
+    document.querySelectorAll(`[data-sv="${s.id}"]`).forEach(e=>e.textContent=fmtSen(s));
+    document.querySelectorAll(`[data-spark="${s.id}"]`).forEach(e=>e.setAttribute('points',sparkPts(s)));
+  });
+  WX.temp+=(31.4-WX.temp)*0.1+(r2()-0.5)*0.2;WX.hum+=(68-WX.hum)*0.1+(r2()-0.5)*1.2;WX.wind=Math.max(2,WX.wind+(r2()-0.5)*1.5);
+  WX.pm=Math.round(sensors.filter(s=>s.type==='pm').reduce((n,s)=>n+s.val,0)/2);
+  renderWeather();
+  if(changed)refreshAll();
+}
+function renderWeather(){
+  $('#wxT').textContent=WX.temp.toFixed(1)+'°';$('#wxH').textContent=Math.round(WX.hum)+'%';$('#wxR').textContent=WX.rain+'%';
+  $('#wxW').textContent=Math.round(WX.wind);$('#wxP').textContent=WX.pm;$('#wxP').className=WX.pm>=37.5?'warn-t':'';
+  $('#wxFeel').textContent=`รู้สึกเหมือน ${Math.round(WX.temp+4.5)}° · ${new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})} น.`;
+}
+setInterval(sensorTick,3000);
+
+/* ---------- Monitor ---------- */
+const app=$('#app'),monList=$('#monList');
+const TABS=[['timeline','Timeline','tl','timeline'],['sos','SOS','sos','sos'],['ai','AI CCTV','ai','ai'],['antitheft','กันขโมย','lock','antitheft'],['rogue','รถแปลกปลอม','rogue','rogue'],
+  ['warn','ผิดปกติ','warn','visitors'],['visit','ผู้ติดต่อ','visit','visitors'],['maint','แจ้งซ่อม','mt','maint'],['cctv','CCTV','cam','cctv'],['pet','สัตว์หาย','pet','pet'],['sensors','เซ็นเซอร์','sen','sensors']];
+const TABF={};TABS.forEach(t=>TABF[t[0]]=t[3]);
+document.querySelector('.tabs').innerHTML=TABS.map(([k,l,c,f])=>`<button role="tab" data-tab="${k}" data-f="${f}" aria-selected="false">${l} <span class="cnt ${c}" id="c-${k}">0</span></button>`).join('');
+let monTab='timeline',vq='',vtype='all',tlg='all';
+const DESC={timeline:'ทุกเหตุการณ์ในโครงการเรียงตามเวลา ล่าสุดก่อน กดรายการเพื่อไปยังจุดเกิดเหตุ',sos:'บ้านที่กดขอความช่วยเหลือ เรียงตามเหตุที่ยังไม่มีผู้รับเรื่องก่อน',
+  ai:'เหตุผิดปกติที่ AI ตรวจจับจากภาพ CCTV ส่วนกลาง',antitheft:'รถที่เจ้าของเปิดโหมดกันขโมย — ถ้าพยายามออก ไม้กั้นจะไม่เปิดอัตโนมัติและเตือนที่ป้อม รปภ.',
+  rogue:'รถที่ทะเบียนไม่อยู่ในระบบ (อ่านจากกล้อง LPR) และรถที่จอดนิ่งนานผิดปกติ',
+  warn:`รถ Taxi / ส่งอาหาร / ส่งพัสดุ ที่อยู่ในโครงการเกิน ${LIMIT} นาที`,visit:'รถผู้ติดต่อที่ยังอยู่ในโครงการ (ยังไม่บันทึกออก)',
+  maint:'งานซ่อม/ปรับปรุงพื้นที่ส่วนกลาง พร้อมวันเริ่มและวันที่คาดว่าจะแล้วเสร็จ',cctv:'กล้องวงจรปิดส่วนกลาง กดเพื่อดูภาพสด',pet:'สัตว์เลี้ยงที่ลูกบ้านแจ้งหาย และจุดที่ CCTV ตรวจพบล่าสุด',
+  sensors:'ค่าจากเซ็นเซอร์สิ่งแวดล้อม อัปเดตทุก 3 วินาที (ระดับน้ำ WL-02 จำลองให้ค่อยๆ สูงขึ้น)'};
+$('#vChips').innerHTML=[['all','ทั้งหมด'],...Object.keys(VT).map(k=>[k,VT[k].label])].map(([k,l])=>`<button data-t="${k}" aria-pressed="${k==='all'}">${l}</button>`).join('');
+const emptyState=t=>`<div class="empty-st">${t}</div>`;
+const fdate=t=>new Date(t).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'});
+const ftime=t=>new Date(t).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+function remain(m){
+  const st=maintState(m),n=Date.now();
+  if(st==='done')return'ส่งมอบงานแล้ว';
+  if(st==='plan')return`เริ่มในอีก ${Math.ceil((m.start-n)/DAY)} วัน`;
+  if(st==='late')return`เลยกำหนด ${Math.ceil((n-m.eta)/DAY)} วัน`;
+  return`เหลืออีกประมาณ ${Math.ceil((m.eta-n)/DAY)} วัน`;
+}
+const nearCam=v=>{let best=null,bd=70;cams.forEach(c=>{if(c.offline)return;const d=spotOf(c).distanceTo(v);if(d<bd){bd=d;best=c;}});return best;};
+const camBtn=(id,label)=>`<button data-act="view" data-cam="${id}" data-f="cctv">${label||'ดูกล้อง '+id}</button>`;
+function sosItem(s){
+  const p=s.house;
+  return `<article class="item sos ${s.state}" data-house="${p.id}"><div class="item-top"><span class="ic sos">${svg('sos')}</span><div class="item-main"><div class="item-t">บ้าน ${p.code} · ${SOSK[s.kind]}</div><div class="item-s">${esc(s.by.name)} · ${s.by.phone||'-'} · ${p.lane}</div></div><span class="time" data-since="${s.since}"></span></div>
+  <div class="item-act"><span class="tag ${s.state}">${s.state==='new'?'รอรับเรื่อง':'กำลังดำเนินการ'}</span>${s.state==='new'?`<button data-act="ack" data-id="${s.id}">รับเรื่อง</button>`:`<button data-act="close" data-id="${s.id}">ปิดเหตุ</button>`}<button class="ghost" data-act="go">ดูบนผัง</button></div></article>`;
+}
+function visitItem(v){
+  const p=v.house,lg=isLong(v),c=lg?'warn':'visit';
+  return `<article class="item ${c}" data-house="${p.id}"><div class="item-top"><span class="ic ${c}">${svg(v.type)}</span><div class="item-main"><div class="item-t"><span class="plate">${v.plate}</span> <span class="muted">${v.prov}</span></div><div class="item-s">${VT[v.type].label} · ${esc(v.who)} · ${VT[v.type].veh} → บ้าน <b>${p.code}</b></div></div><span class="time${lg?' over':''}" data-since="${v.since}"></span></div>
+  ${lg?`<div class="item-note">เกินเกณฑ์ ${LIMIT} นาที — ติดต่อบ้าน ${p.code} หรือให้ รปภ. ตรวจสอบ</div>`:''}<div class="item-act"><button data-act="out" data-id="${v.id}">บันทึกออก</button><button class="ghost" data-act="go">ดูบนผัง</button></div></article>`;
+}
+function maintItem(m){
+  const st=maintState(m),c=nearCam(m.pos);
+  return `<article class="item mt ${st}" data-kind="maint" data-id="${m.id}"><div class="item-top"><span class="ic mt">${svg('service')}</span><div class="item-main"><div class="item-t">${m.title}</div><div class="item-s">${m.place} · ${m.cat} · ${m.id}</div></div><span class="tag ${st}">${MST[st]}</span></div>
+  <div class="mt-body"><div class="prog" role="progressbar" aria-valuenow="${m.progress}" aria-valuemin="0" aria-valuemax="100"><i style="width:${m.progress}%"></i></div>
+  <dl class="mt-dl"><div><dt>เริ่มงาน</dt><dd>${fdate(m.start)}</dd></div><div><dt>คาดว่าเสร็จ</dt><dd>${fdate(m.eta)}</dd></div><div><dt>คืบหน้า</dt><dd>${m.progress}%</dd></div></dl>
+  <div class="item-s"><b class="${st==='late'?'late-t':''}">${remain(m)}</b> · ผู้รับผิดชอบ ${m.by}</div><div class="item-s">${m.note}</div></div>
+  <div class="item-act">${c?camBtn(c.id):''}<button class="ghost" data-act="go">ดูบนผัง</button></div></article>`;
+}
+function camItem(c){
+  const here=on('pet')&&pet.status==='lost'&&petLast().cam===c,ai=on('ai')?aiList.filter(a=>a.cam===c&&a.state!=='closed').length:0;
+  return `<article class="item cam${c.offline?' off':''}" data-kind="cam" data-id="${c.id}"><div class="item-top"><span class="ic cam">${svg('cam')}</span><div class="item-main"><div class="item-t">${c.id} · ${c.name}</div><div class="item-s">${c.offline?'ขาดการเชื่อมต่อตั้งแต่ 06:12 น. · แจ้งช่างแล้ว':'1080p · บันทึกย้อนหลัง 30 วัน'}</div></div><span class="tag ${c.offline?'late':'in'}">${c.offline?'ออฟไลน์':'ออนไลน์'}</span></div>
+  ${here?`<div class="item-note pet-t">🐾 ตรวจพบ${pet.species} "${pet.name}" ล่าสุดที่กล้องนี้</div>`:''}${ai?`<div class="item-note ai-t">AI ตรวจพบเหตุผิดปกติ ${ai} รายการ</div>`:''}<div class="item-act"><button data-act="view">ดูภาพสด</button><button class="ghost" data-act="go">ดูบนผัง</button></div></article>`;
+}
+function petView(){
+  if(pet.status!=='lost')return emptyState(`ไม่มีรายการสัตว์เลี้ยงหาย<br><small>"${pet.name}" ถูกบันทึกว่าพบแล้ว</small>`);
+  const l=petLast(),o=pet.owner;
+  return `<article class="item pet" data-kind="pet"><div class="item-top"><span class="ic pet">${svg('paw')}</span><div class="item-main"><div class="item-t">${pet.species} "${pet.name}" · ${pet.breed}</div><div class="item-s">${pet.color} · ${pet.sex}</div><div class="item-s">${pet.collar}</div><div class="item-s">เจ้าของ <b>${esc(o.name)}</b> · บ้าน <b>${pet.house.code}</b> · ${o.phone||'-'}</div><div class="item-s">แจ้งหายเมื่อ <span data-since="${pet.reportedAt}"></span>ที่แล้ว</div></div></div>
+  <div class="pet-last"><span class="eyebrow">ตรวจพบล่าสุดจาก CCTV (AI)</span><b>${l.cam.id} · ${l.cam.name}</b><span><span data-since="${l.at}"></span>ที่แล้ว · ความมั่นใจ ${Math.round(l.conf*100)}%</span></div>
+  <div class="item-act">${camBtn(l.cam.id,'ดูกล้องล่าสุด')}<button class="ghost" data-act="go">ดูบนผัง</button><button class="ghost" data-act="move">จำลองย้ายจุด</button><button class="ghost" data-act="found">พบแล้ว</button></div></article>
+  <div class="sec-t trail-h">เส้นทางที่ตรวจพบ <small>${pet.sightings.length} จุด · ล่าสุดก่อน</small></div>
+  <ol class="trail">${pet.sightings.slice().reverse().map((s,i)=>`<li class="${i===0?'now':''}"><b>${s.cam.id} · ${s.cam.name}</b><small><span data-since="${s.at}"></span>ที่แล้ว · ${Math.round(s.conf*100)}%</small></li>`).join('')}</ol>
+  <p class="mon-desc">ตัวอย่างนี้จำลองให้สัตว์ย้ายจุดเองทุก 40 วินาที</p>`;
+}
+const AIS={new:['new','ใหม่'],ack:['ack','รับทราบแล้ว'],closed:['done','ปิดแล้ว']};
+function aiItem(a){
+  return `<article class="item ai ${a.state}" data-kind="ai" data-id="${a.id}"><div class="item-top"><span class="ic ai">${svg('eye')}</span><div class="item-main"><div class="item-t">${AIT[a.type]}</div><div class="item-s">${a.cam.id} · ${a.cam.name} · ความมั่นใจ ${Math.round(a.conf*100)}%</div><div class="item-s">${esc(a.note)}</div></div><span class="time" data-since="${a.at}"></span></div>
+  <div class="item-act"><span class="tag ${AIS[a.state][0]}">${AIS[a.state][1]}</span>${a.state==='new'?'<button data-act="ack">รับทราบ</button>':a.state==='ack'?'<button data-act="close">ปิดเหตุ</button>':''}${camBtn(a.cam.id,'ดูภาพ')}<button class="ghost" data-act="go">ดูบนผัง</button></div></article>`;
+}
+function rogueItem(r){
+  return `<article class="item rogue" data-kind="rogue" data-id="${r.id}"><div class="item-top"><span class="ic rogue">${svg('car')}</span><div class="item-main"><div class="item-t"><span class="plate">${r.plate}</span> <span class="muted">${r.prov}</span></div><div class="item-s">${esc(r.note)}</div></div><span class="time over" data-since="${r.since}"></span></div>
+  <div class="item-act"><span class="tag ${r.kind==='unknown'?'new':'ack'}">${RK[r.kind]}</span>${r.cam?camBtn(r.cam):''}<button data-act="resolve">ตรวจสอบแล้ว</button><button class="ghost" data-act="go">ดูบนผัง</button></div></article>`;
+}
+function antitheftView(){
+  const blocked=gateAlerts.filter(a=>a.state==='blocked'),locked=allVeh.filter(v=>v.lock);
+  let h=`<div class="gate-card${blocked.length?' locked':''}"><span class="ic ${blocked.length?'sos':'lockc'}">${svg('lock')}</span><div><b>ไม้กั้นขาออก · ป้อมหน้า</b><small>${blocked.length?`ระงับการเปิดอัตโนมัติ · รอ รปภ. ตรวจสอบ ${blocked.length} คัน`:'ทำงานปกติ · รถลูกบ้านออกได้อัตโนมัติ'}</small></div></div>`;
+  h+=blocked.map(a=>{const v=a.veh,o=occupant(v.house);return `<article class="item gate" data-kind="gate" data-id="${a.id}"><div class="item-top"><span class="ic sos">${svg('lock')}</span><div class="item-main"><div class="item-t"><span class="plate">${v.plate}</span> พยายามออกจากโครงการ</div><div class="item-s">${v.model} สี${v.color} · บ้าน <b>${v.house.code}</b> · เปิดกันขโมยตั้งแต่ ${fdate(v.lockAt)} ${ftime(v.lockAt)}</div><div class="item-s">เจ้าของ ${esc(o.name)} · ${o.phone||'-'}</div></div><span class="time" data-since="${a.at}"></span></div>
+    <div class="item-note crit">ไม่เปิดไม้กั้นอัตโนมัติ — ให้ รปภ. ตรวจสอบผู้ขับและติดต่อเจ้าของ</div><div class="item-act"><button data-act="call">โทรหาเจ้าของ</button><button data-act="release">เจ้าของยืนยัน · เปิดไม้กั้น</button>${camBtn('CAM-01')}</div></article>`;}).join('');
+  h+=`<div class="sec-t trail-h">รถที่เปิดโหมดกันขโมย <small>${locked.length} คัน</small></div>`;
+  h+=locked.length?locked.map(v=>`<article class="item lockv" data-kind="lockv" data-id="${v.vid}"><div class="item-top"><span class="ic lockc">${svg('lock')}</span><div class="item-main"><div class="item-t"><span class="plate">${v.plate}</span> <span class="muted">${v.prov}</span></div><div class="item-s">${v.model} สี${v.color} · บ้าน <b>${v.house.code}</b> · เปิดเมื่อ <span data-since="${v.lockAt}"></span>ที่แล้ว</div></div></div>
+    <div class="item-act"><button data-act="try">จำลองรถพยายามออก</button><button class="ghost" data-act="unlock">ปิดโหมด</button><button class="ghost" data-act="go">ดูบ้าน</button></div></article>`).join(''):emptyState('ยังไม่มีรถเปิดโหมดกันขโมย<br><small>เปิดได้จากการ์ดรายละเอียดบ้าน</small>');
+  return h;
+}
+function sensorItem(s){
+  const lv=senLevel(s);
+  return `<article class="item sen ${lv}" data-kind="sen" data-id="${s.id}"><div class="item-top"><span class="ic sen ${lv}">${svg('gauge')}</span><div class="item-main"><div class="item-t">${SENT[s.type]} · ${s.name}</div><div class="item-s">${s.id} · เตือน ${s.warn} / วิกฤต ${s.crit} ${s.unit}</div></div><div class="sen-val"><b data-sv="${s.id}">${fmtSen(s)}</b><small>${s.unit}</small></div></div>
+  <div class="sen-row"><svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><polyline data-spark="${s.id}" points="${sparkPts(s)}"/></svg><span class="tag ${LVC[lv]}">${LVT[lv]}</span></div></article>`;
+}
+const FEATNAME={};FEATS.forEach(f=>FEATNAME[f.k]=f.t);
+function timelineView(){
+  const groups=Object.entries(TLG).filter(([,g])=>g.f.some(on));
+  const list=events.filter(e=>on(e.f)&&(tlg==='all'||TLG[tlg].f.includes(e.f))).sort((a,b)=>b.at-a.at).slice(0,120);
+  let h=`<div class="chips tl-chips">${[['all','ทั้งหมด'],...groups.map(([k,g])=>[k,g.t])].map(([k,l])=>`<button data-tlg="${k}" aria-pressed="${tlg===k}">${l}</button>`).join('')}</div>`;
+  let day='';
+  h+=list.length?list.map(e=>{
+    const d=fdate(e.at),sep=d!==day?`<div class="tl-day">${d===fdate(Date.now())?'วันนี้':d}</div>`:'';day=d;
+    return `${sep}<article class="item tl ${e.sev}" data-kind="ev" data-id="${e.id}"><div class="item-top"><span class="tl-time">${ftime(e.at)}</span><span class="ic tlic ${e.sev}">${svg(e.icon)}</span><div class="item-main"><div class="item-t">${esc(e.text)}</div><div class="item-s">${FEATNAME[e.f]||''} · <span data-since="${e.at}"></span>ที่แล้ว</div></div></div></article>`;
+  }).join(''):emptyState('ยังไม่มีเหตุการณ์');
+  return h;
+}
+const MORDER={late:0,wip:1,plan:2,done:3};
+const setCnt=(k,v,hot)=>{const e=$('#c-'+k);e.textContent=v;e.classList.toggle('cold',!hot);};
+function firstTab(){const t=TABS.find(t=>on(t[3]));return t&&t[0];}
+function renderMon(){
+  if(!on(TABF[monTab]))monTab=firstTab()||monTab;
+  const longs=visitors.filter(isLong),blocked=gateAlerts.filter(a=>a.state==='blocked').length,aiOpen=aiList.filter(a=>a.state==='new').length,
+    rOpen=rogues.filter(r=>r.state==='open').length,senBad=sensors.filter(s=>senLevel(s)!=='ok').length,hour=events.filter(e=>on(e.f)&&Date.now()-e.at<60*MIN).length;
+  setCnt('timeline',hour,true);setCnt('sos',sosList.length,sosList.length>0);setCnt('ai',aiList.filter(a=>a.state!=='closed').length,aiOpen>0);
+  setCnt('antitheft',blocked||allVeh.filter(v=>v.lock).length,blocked>0);setCnt('rogue',rOpen,rOpen>0);
+  setCnt('warn',longs.length,longs.length>0);setCnt('visit',visitors.length,true);setCnt('maint',maint.filter(m=>maintState(m)!=='done').length,true);
+  setCnt('cctv',cams.filter(c=>!c.offline).length+'/'+cams.length,true);setCnt('pet',pet.status==='lost'?1:0,pet.status==='lost');setCnt('sensors',senBad,senBad>0);
+  document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===monTab));
+  $('#monDesc').textContent=DESC[monTab];$('#monTools').hidden=monTab!=='visit';
+  let html;
+  if(monTab==='timeline')html=timelineView();
+  else if(monTab==='sos'){const l=sosList.slice().sort((a,b)=>(a.state==='new'?0:1)-(b.state==='new'?0:1)||a.since-b.since);html=l.length?l.map(sosItem).join(''):emptyState('ไม่มีบ้านขอความช่วยเหลือในขณะนี้');}
+  else if(monTab==='ai'){const o={new:0,ack:1,closed:2};html=aiList.slice().sort((a,b)=>o[a.state]-o[b.state]||b.at-a.at).map(aiItem).join('');}
+  else if(monTab==='antitheft')html=antitheftView();
+  else if(monTab==='rogue'){const l=rogues.filter(r=>r.state==='open'),n=rogues.length-l.length;html=(l.length?l.map(rogueItem).join(''):emptyState('ไม่พบรถแปลกปลอมหรือรถจอดค้าง'))+(n?`<p class="mon-desc">ตรวจสอบแล้ว ${n} รายการ</p>`:'');}
+  else if(monTab==='warn'){const l=longs.slice().sort((a,b)=>a.since-b.since);html=l.length?l.map(visitItem).join(''):emptyState('ไม่พบรถผู้ติดต่อที่อยู่เกินเวลา');}
+  else if(monTab==='visit'){
+    const q=vq.trim().toLowerCase();
+    const l=visitors.filter(v=>(vtype==='all'||v.type===vtype)&&(!q||[v.plate,v.house.code,v.who,v.prov].join(' ').toLowerCase().includes(q))).sort((a,b)=>isLong(b)-isLong(a)||a.since-b.since);
+    html=l.length?l.map(visitItem).join(''):emptyState('ไม่พบรถผู้ติดต่อตามเงื่อนไข');
+  }
+  else if(monTab==='maint')html=maint.slice().sort((a,b)=>MORDER[maintState(a)]-MORDER[maintState(b)]||a.eta-b.eta).map(maintItem).join('');
+  else if(monTab==='cctv')html=cams.map(camItem).join('');
+  else if(monTab==='pet')html=petView();
+  else html=sensors.slice().sort((a,b)=>({crit:0,warn:1,ok:2}[senLevel(a)]-{crit:0,warn:1,ok:2}[senLevel(b)])).map(sensorItem).join('');
+  monList.innerHTML=html;tick();
+  const alerts=(on('sos')?sosList.filter(s=>s.state==='new').length:0)+(on('visitors')?longs.length:0)+(on('antitheft')?blocked:0)+(on('ai')?aiOpen:0)+(on('rogue')?rOpen:0)+(on('sensors')?sensors.filter(s=>senLevel(s)==='crit').length:0),bd=$('#monBadge');
+  bd.textContent=alerts;bd.hidden=!alerts;
+}
+function updateKpis(){
+  $('#kPeople').textContent=homes.reduce((n,p)=>n+p.residents.filter(r=>!r.note||r.role!=='owner').length,0);
+  $('#kCars').textContent=allVeh.filter(v=>v.inside).length+'/'+allVeh.length;
+  $('#kVisit').textContent=visitors.length;$('#kSos').textContent=sosList.length;
+}
+let lastSig='';
+function refreshAll(){
+  lastSig=visitors.filter(isLong).map(v=>v.id).join();
+  refreshMarkers();renderMon();updateKpis();setFocus(focus);
+  if(selected){$('#iExtra').innerHTML=houseDetail(selected);tick();}
+}
+function tick(){const n=Date.now();document.querySelectorAll('[data-since]').forEach(e=>e.textContent=dur(n-+e.dataset.since));}
+setInterval(()=>{tick();tickCam();if(visitors.filter(isLong).map(v=>v.id).join()!==lastSig){
+  visitors.filter(v=>isLong(v)&&!v.logged).forEach(v=>{v.logged=true;logEvent(v.since+LIMIT*MIN,'visitors','warn',v.type,`${VT[v.type].label} ${v.plate} อยู่เกิน ${LIMIT} นาที · บ้าน ${v.house.code}`,{house:v.house});});
+  refreshAll();}},1000);
+visitors.filter(isLong).forEach(v=>{v.logged=true;logEvent(v.since+LIMIT*MIN,'visitors','warn',v.type,`${VT[v.type].label} ${v.plate} อยู่เกิน ${LIMIT} นาที · บ้าน ${v.house.code}`,{house:v.house});});
+
+function openMon(on_){
+  if(on_&&!firstTab())on_=false;
+  if(on_&&app.classList.contains('sales-open'))openSales(false);
+  app.classList.toggle('mon-open',on_);$('#bMon').setAttribute('aria-pressed',on_);$('#monitor').setAttribute('aria-hidden',!on_);
+  if(on_&&matchMedia('(max-width:760px)').matches)select(null);
+}
+function showTab(t,id){
+  if(!on(TABF[t]))return;
+  monTab=t;openMon(true);renderMon();
+  if(id){const el=monList.querySelector(`[data-id="${id}"]`);if(el){el.scrollIntoView({block:'nearest'});el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),1600);}}
+}
+function onPoi(o,k){
+  if(k==='maint'){showTab('maint',o.id);flyToPos(o.pos);}
+  else if(k==='pet')showTab('pet');
+  else if(k==='rogue')showTab('rogue',o.id);
+  else if(k==='ai')showTab('ai',o.id);
+  else if(k==='gate')showTab('antitheft');
+  else if(k.startsWith('sen'))showTab('sensors',o.id);
+  else openCam(o);
+}
+$('#bMon').onclick=()=>openMon(!app.classList.contains('mon-open'));
+new MutationObserver(()=>relayoutSoon(320)).observe(app,{attributes:true,attributeFilter:['class']});
+$('#monClose').onclick=()=>openMon(false);
+document.querySelector('.tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;monTab=b.dataset.tab;renderMon();});
+$('#vSearch').addEventListener('input',e=>{vq=e.target.value;renderMon();});
+$('#vChips').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;vtype=b.dataset.t;document.querySelectorAll('#vChips button').forEach(x=>x.setAttribute('aria-pressed',x===b));renderMon();});
+let toastT;
+function toast(msg,cls){const t=$('#toast');t.textContent=msg;t.className=cls||'';t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,3600);}
+function goHouse(p){flyTo(p);select(p);}
+function goEvent(g){if(g.house)goHouse(g.house);else if(g.cam){if(on('cctv'))openCam(g.cam);flyToPos(g.cam.pos);}else if(g.pos)flyToPos(g.pos);}
+function tryExit(v){
+  const a=gateAttempt(v,0);
+  logEvent(a.at,'antitheft','crit','lock',`รถ ${v.plate} (บ้าน ${v.house.code}) ที่เปิดกันขโมย พยายามออกจากโครงการ — ไม้กั้นไม่เปิด`,{pos:GATE_POS});
+  toast(`🚫 ${v.plate} เปิดโหมดกันขโมย — ไม้กั้นไม่เปิด แจ้งป้อม รปภ.`,'sos');
+  refreshAll();showTab('antitheft');flyToPos(GATE_POS);
+}
+monList.addEventListener('click',e=>{
+  const chip=e.target.closest('[data-tlg]');if(chip){tlg=chip.dataset.tlg;renderMon();return;}
+  const card=e.target.closest('.item');if(!card)return;
+  const b=e.target.closest('button'),act=b&&b.dataset.act,kind=card.dataset.kind;
+  if(act==='view'&&b.dataset.cam){openCam(camById(b.dataset.cam));return;}
+  if(kind==='ev'){goEvent(events.find(x=>x.id===+card.dataset.id).go);return;}
+  if(kind==='maint'){flyToPos(maint.find(x=>x.id===card.dataset.id).pos);return;}
+  if(kind==='cam'){const c=camById(card.dataset.id);if(act==='go')flyToPos(c.pos);else openCam(c);return;}
+  if(kind==='ai'){
+    const a=aiList.find(x=>x.id===card.dataset.id);
+    if(act==='ack'||act==='close'){a.state=act==='ack'?'ack':'closed';logEvent(Date.now(),'ai','info','eye',`${act==='ack'?'รับทราบ':'ปิดเหตุ'} ${a.id} ${AIT[a.type]} (${a.cam.id})`,{cam:a.cam});toast(`${act==='ack'?'รับทราบ':'ปิดเหตุ'} ${a.id} แล้ว`);refreshAll();}
+    else flyToPos(spotOf(a.cam));
+    return;
+  }
+  if(kind==='rogue'){
+    const r=rogues.find(x=>x.id===card.dataset.id);
+    if(act==='resolve'){r.state='done';logEvent(Date.now(),'rogue','info','car',`ตรวจสอบรถ ${r.plate} แล้ว · ปิดรายการ`,{pos:r.pos});toast(`ปิดรายการรถ ${r.plate}`);refreshAll();}
+    else flyToPos(r.pos);
+    return;
+  }
+  if(kind==='gate'){
+    const a=gateAlerts.find(x=>x.id===+card.dataset.id),v=a.veh,o=occupant(v.house);
+    if(act==='call'){logEvent(Date.now(),'antitheft','info','lock',`รปภ. โทรหา ${o.name} (บ้าน ${v.house.code}) เรื่องรถ ${v.plate}`,{house:v.house});toast(`📞 กำลังโทรหา ${o.name} · ${o.phone||'-'}`);refreshAll();}
+    else if(act==='release'){a.state='released';v.lock=false;logEvent(Date.now(),'antitheft','info','lock',`เจ้าของยืนยันตัวตน เปิดไม้กั้นให้ ${v.plate} และปิดโหมดกันขโมย`,{pos:GATE_POS});toast(`เปิดไม้กั้นให้ ${v.plate} แล้ว`);refreshAll();}
+    else flyToPos(GATE_POS);
+    return;
+  }
+  if(kind==='lockv'){
+    const v=allVeh[+card.dataset.id];
+    if(act==='try')tryExit(v);else if(act==='unlock')setLock(v,false);else goHouse(v.house);
+    return;
+  }
+  if(kind==='sen'){flyToPos(sensors.find(x=>x.id===card.dataset.id).pos);return;}
+  if(kind==='pet'){
+    if(act==='move')movePet();
+    else if(act==='found'){pet.status='found';logEvent(Date.now(),'pet','info','paw',`พบ "${pet.name}" แล้ว · ส่งคืนเจ้าของบ้าน ${pet.house.code}`,{house:pet.house});placePet();refreshAll();toast(`บันทึกว่าพบ "${pet.name}" แล้ว · แจ้งเจ้าของบ้าน ${pet.house.code}`);}
+    else flyToPos(petCenter);
+    return;
+  }
+  const p=plots[+card.dataset.house],id=b&&+b.dataset.id;
+  if(act==='ack'){const s=sosList.find(x=>x.id===id);s.state='ack';logEvent(Date.now(),'sos','info','sos',`รปภ. รับเรื่อง SOS บ้าน ${p.code}`,{house:p});toast(`รับเรื่อง SOS บ้าน ${p.code} แล้ว`);refreshAll();return;}
+  if(act==='close'){const i=sosList.findIndex(x=>x.id===id);sosList.splice(i,1);p.sos=null;logEvent(Date.now(),'sos','info','sos',`ปิดเหตุ SOS บ้าน ${p.code}`,{house:p});toast(`ปิดเหตุบ้าน ${p.code}`);refreshAll();return;}
+  if(act==='out'){const v=visitors.find(x=>x.id===id);visitors.splice(visitors.indexOf(v),1);p.visitors.splice(p.visitors.indexOf(v),1);logEvent(Date.now(),'visitors','info',v.type,`รถ ${v.plate} บันทึกออก (บ้าน ${p.code})`,{house:p});toast(`บันทึกออก ${v.plate} แล้ว`);refreshAll();return;}
+  goHouse(p);
+});
+
+/* ---------- Event simulator (only features that are switched on) ---------- */
+const onlineCams=()=>cams.filter(c=>!c.offline);
+const SIMS=[
+  ['sos',()=>homes.some(h=>!h.sos),()=>{const s=addSOS(pk(Object.keys(SOSK)),0),p=s.house;logEvent(s.since,'sos','crit','sos',`SOS บ้าน ${p.code} · ${SOSK[s.kind]}`,{house:p});toast(`🚨 SOS ใหม่ · บ้าน ${p.code} · ${SOSK[s.kind]}`,'sos');refreshAll();showTab('sos');goHouse(p);}],
+  ['visitors',()=>true,()=>{const v=addVisitor(pk(['taxi','food','parcel']),15+r2()*8),p=v.house;logEvent(v.since,'visitors','info',v.type,`รถ${VT[v.type].label} ${v.plate} เข้าโครงการ → บ้าน ${p.code}`,{house:p});toast(`${VT[v.type].label} ${v.plate} อยู่บ้าน ${p.code} เกิน ${LIMIT} นาที`);refreshAll();showTab('warn');goHouse(p);}],
+  ['visitors',()=>true,()=>{const v=addVisitor(pk(['guest','service','food','parcel']),0),p=v.house;logEvent(v.since,'visitors','info',v.type,`รถ${VT[v.type].label} ${v.plate} เข้าโครงการ → บ้าน ${p.code}`,{house:p});toast(`รถผู้ติดต่อเข้าโครงการ ${v.plate} → บ้าน ${p.code}`);refreshAll();showTab('visit');goHouse(p);}],
+  ['ai',()=>true,()=>{const c=pk(onlineCams()),a=addAI(pk(['loiter','speed','dump','fall','smoke']),c.id,0,0.78+r2()*0.2,'ตรวจพบจากการวิเคราะห์ภาพอัตโนมัติ — รอ รปภ. ตรวจสอบ');logEvent(a.at,'ai','warn','eye',`AI ${c.id}: ${AIT[a.type]} (${Math.round(a.conf*100)}%)`,{cam:c});toast(`👁 AI ${c.id}: ${AIT[a.type]}`);refreshAll();showTab('ai',a.id);flyToPos(spotOf(c));}],
+  ['antitheft',()=>allVeh.some(v=>v.lock),()=>tryExit(pk(allVeh.filter(v=>v.lock)))],
+  ['rogue',()=>true,()=>{
+    const w=pk(wings),lane=pk(w.lanes),pos=wp(w.f,w.dir*(22+r2()*80),lane+(r2()<0.5?3.2:-3.2)),c=nearCam(pos);
+    const r={id:'RV-'+String(rogues.length+1).padStart(2,'0'),kind:'unknown',plate:plate(),prov:pk(['ชลบุรี','ระยอง','อยุธยา','นครปฐม']),color:pk(['#3b3f44','#c9ccce','#2f4a6e']),pos,yaw:-w.f.a,since:Date.now(),cam:c&&c.id,state:'open',note:'กล้อง LPR อ่านทะเบียนได้ แต่ไม่พบในฐานข้อมูลลูกบ้าน/ผู้ติดต่อ'};
+    rogues.push(r);addRogueCar(r);logEvent(r.since,'rogue','warn','car',`${RK[r.kind]} · ${r.plate} ${r.prov}`,{pos});toast(`🚗 รถไม่อยู่ในระบบ ${r.plate} ${r.prov}`);refreshAll();showTab('rogue',r.id);flyToPos(pos);}],
+  ['sensors',()=>true,()=>{const s=pk(sensors.filter(x=>senLevel(x)!=='crit'));if(!s)return;s.val=s.crit+2+r2()*4;s.hist[s.hist.length-1]=s.val;
+    logEvent(Date.now(),'sensors','crit','gauge',`${s.id} ${SENT[s.type]}ถึงระดับวิกฤต ${fmtSen(s)} ${s.unit} · ${s.name}`,{pos:s.pos});toast(`⚠️ ${s.id} ${SENT[s.type]}วิกฤต · ${s.name}`,'sos');refreshAll();showTab('sensors',s.id);flyToPos(s.pos);}],
+  ['pet',()=>pet.status==='lost',()=>{movePet();showTab('pet');}],
+];
+$('#simBtn').onclick=()=>{const l=SIMS.filter(([f,ok])=>on(f)&&ok());if(l.length)pk(l)[2]();};
+
+/* ---------- Presentation settings ---------- */
+const setBox=$('#settings');
+document.head.insertAdjacentHTML('beforeend',`<style>${[...FEATS.map(f=>f.k),'monitor'].map(k=>`body.off-${k} [data-f~="${k}"]`).join(',')}{display:none!important}</style>`);
+function renderSettings(){
+  const groups=[...new Set(FEATS.map(f=>f.g))];
+  $('#setBody').innerHTML=groups.map(g=>`<fieldset><legend>${g}</legend>${FEATS.filter(f=>f.g===g).map(f=>{const need=f.need&&!on(f.need);return `<label class="sw-row${need?' dim':''}"><span><b>${f.t}</b><small>${f.d}${f.need?` · ต้องเปิด "${FEATNAME[f.need]}"`:''}</small></span><input type="checkbox" data-feat="${f.k}"${F[f.k]?' checked':''}><i class="sw-ui" aria-hidden="true"></i></label>`;}).join('')}</fieldset>`).join('');
+}
+function applyFeatures(){
+  try{localStorage.setItem('village-demo-features',JSON.stringify(F));}catch(e){}
+  FEATS.forEach(f=>document.body.classList.toggle('off-'+f.k,!on(f.k)));
+  const any=!!firstTab();document.body.classList.toggle('off-monitor',!any);
+  if(!any)openMon(false);
+  if(!on('cctv'))closeCam();
+  placePet();renderWeather();refreshAll();
+  if(!setBox.hidden)renderSettings();
+}
+function setFeature(k,v){F[k]=v;applyFeatures();}
+$('#setBody').addEventListener('change',e=>{const i=e.target.closest('[data-feat]');if(i)setFeature(i.dataset.feat,i.checked);});
+$('#bSet').onclick=()=>{setBox.hidden=!setBox.hidden;if(!setBox.hidden)renderSettings();};
+$('#setClose').onclick=()=>setBox.hidden=true;
+$('#setAll').onclick=()=>{FEATS.forEach(f=>F[f.k]=true);applyFeatures();};
+$('#setNone').onclick=()=>{FEATS.forEach(f=>F[f.k]=false);applyFeatures();};
+
+/* ---------- Sales lens: revenue opportunities for the juristic office (sample data) ----------
+   Uses what the juristic office already knows about each home (handover date, house type, service history,
+   Premium Security, common-fee status, owner-occupied vs rented, incidents in the soi) to rank who to offer what. */
+const sr=mulberry(9090);
+const FEE_RATE=32;   // ฿ per ตร.ว. per month (sample)
+homes.forEach(p=>{
+  const one=p.type.includes('1 ชั้น');
+  const r=sr();
+  p.biz={handoverM:3+Math.floor(sr()*58),ac:one?2:3+(sr()<0.4?1:0),
+    acLastM:sr()<0.18?null:Math.floor(sr()*14),pestLastM:sr()<0.45?null:Math.floor(sr()*26),
+    jobs12:[0,0,1,1,1,2,2,3,4][Math.floor(sr()*9)],sec:sr()<0.32,plan:sr()<0.1,consent:sr()<0.82,
+    feeOver:r<0.83?0:r<0.93?1+Math.floor(sr()*2):3+Math.floor(sr()*4),fee:p.land*FEE_RATE};
+});
+const absentee=p=>p.occupancy==='ปล่อยเช่า';
+// incidents per soi today (SOS, rogue vehicles, open AI CCTV alerts) → security upsell trigger
+const nearestPlot=pos=>{let b=null,d=1e9;plots.forEach(p=>{const q=p.world.distanceTo(new V3(pos.x,0,pos.z));if(q<d){d=q;b=p;}});return d<45?b:null;};
+const laneInc={};const incAdd=p=>{if(p){const L=p.code[0];laneInc[L]=(laneInc[L]||0)+1;}};
+sosList.forEach(s=>incAdd(s.house));rogues.forEach(r=>incAdd(nearestPlot(r.pos)));aiList.filter(a=>a.state!=='closed').forEach(a=>incAdd(nearestPlot(a.cam.pos)));
+const baht=n=>'฿'+Math.round(n).toLocaleString('th-TH');
+const OFFERS=[
+  {k:'ac',t:'ล้างแอร์',per:'once',price:p=>p.biz.ac*650,w:20,why:p=>{const b=p.biz;return b.acLastM==null?'ยังไม่เคยล้างแอร์กับเรา':b.acLastM>=6?`ล้างล่าสุด ${b.acLastM} เดือนก่อน (${b.ac} เครื่อง)`:null;}},
+  {k:'pest',t:'ตรวจ/ป้องกันปลวก',per:'once',price:()=>3900,w:15,why:p=>{const b=p.biz;return b.handoverM>=12&&(b.pestLastM==null||b.pestLastM>=12)?`บ้านอายุ ${Math.floor(b.handoverM/12)} ปี ${b.handoverM%12} เดือน · ${b.pestLastM==null?'ยังไม่เคยตรวจ':'ตรวจล่าสุด '+b.pestLastM+' เดือนก่อน'}`:null;}},
+  {k:'sec',t:'Premium Security',per:'month',price:()=>590,w:p=>laneInc[p.code[0]]?35:12,why:p=>p.biz.sec?null:laneInc[p.code[0]]?`ซอย ${p.code[0]} มีเหตุ ${laneInc[p.code[0]]} รายการวันนี้ · ยังไม่สมัคร`:'ยังไม่สมัคร',hot:p=>!!laneInc[p.code[0]]},
+  {k:'care',t:'ดูแลบ้านเจ้าของไม่อยู่',per:'month',price:()=>1500,w:30,why:p=>absentee(p)?'เจ้าของไม่ได้พักอาศัย (ปล่อยเช่า) · บริการใหม่':null},
+  {k:'plan',t:'แพ็กเกจดูแลบ้านรายปี',per:'year',price:()=>4900,w:10,why:p=>!p.biz.plan&&p.biz.handoverM>=12?`ส่งมอบมาแล้ว ${p.biz.handoverM} เดือน · ยังไม่มีแพ็กเกจ`:null},
+  {k:'fee',t:'ติดตามค่าส่วนกลาง',per:'collect',price:p=>p.biz.feeOver*p.biz.fee,w:0,why:p=>p.biz.feeOver?`ค้างชำระ ${p.biz.feeOver} เดือน`:null},
+];
+const PER_T={once:'ครั้ง',month:'/เดือน',year:'/ปี',collect:'ค้างรับ'};
+const annual=(o,p)=>{const v=o.price(p);return o.per==='month'?v*12:v;};
+homes.forEach(p=>{
+  p.opps=OFFERS.map(o=>{const why=o.why(p);return why?{o,why,v:o.price(p),yr:annual(o,p),hot:o.hot?o.hot(p):false}:null;}).filter(Boolean);
+  const sales=p.opps.filter(x=>x.o.k!=='fee');
+  p.score=Math.min(100,sales.reduce((n,x)=>n+(typeof x.o.w==='function'?x.o.w(p):x.o.w),0));
+  p.oppYr=sales.reduce((n,x)=>n+x.yr,0);
+});
+const lvl=sc=>sc>=55?'hi':sc>=30?'mid':sc>0?'lo':'no';
+const LVL_T={hi:'สูง',mid:'กลาง',lo:'ต่ำ',no:'-'};
+const heatMat={hi:L('#d9480f'),mid:L('#f59f00'),lo:L('#ead9a6'),no:L('#c8c5bc')};
+const feeMat={1:L('#f08c8c'),2:L('#e03131'),3:L('#9b1c1c')};
+let salesFilter='all';
+const qualifies=(p,k)=>p.opps&&p.opps.some(x=>x.o.k===k);
+lensMat=p=>{
+  if(!p.biz)return M.dim;   // unsold / vacant / WIP: nothing to sell yet
+  if(salesFilter==='all')return heatMat[lvl(p.score)];
+  if(salesFilter==='fee'){const m=p.biz.feeOver;return m?feeMat[m>=3?3:m>=2?2:1]:heatMat.no;}
+  return qualifies(p,salesFilter)?heatMat.hi:heatMat.no;
+};
+function setLens(v){lensOn=v;markers.visible=!v;setFocus(focus);}
+const LETTERS=[...new Set(homes.map(p=>p.code[0]))].sort();
+function soiStats(L){
+  const hs=homes.filter(p=>p.code[0]===L);
+  return{L,n:hs.length,sec:hs.filter(p=>p.biz.sec).length/hs.length,svc:hs.filter(p=>p.biz.jobs12>0).length/hs.length,
+    over:hs.filter(p=>p.biz.feeOver).length,opp:hs.reduce((n,p)=>n+p.oppYr,0),center:hs.reduce((c,p)=>c.add(p.world),new V3()).divideScalar(hs.length)};
+}
+const maskName=n=>{const [a,b]=String(n).split(' ');return a+(b?' '+b[0]+'.':'');};
+function leadsFor(f){
+  let list=homes.filter(p=>p.biz.consent);
+  if(f==='all')list=list.filter(p=>p.score>0).sort((a,b)=>b.score-a.score||b.oppYr-a.oppYr);
+  else list=list.filter(p=>qualifies(p,f)).sort((a,b)=>{const va=a.opps.find(x=>x.o.k===f),vb=b.opps.find(x=>x.o.k===f);return (vb.hot-va.hot)||(vb.yr-va.yr);});
+  return list;
+}
+function renderSales(){
+  if(!on('sales'))return;
+  const N=homes.length,svcRev=homes.reduce((n,p)=>n+p.biz.jobs12*1800+(p.biz.sec?590*12:0)+(p.biz.plan?4900:0),0);
+  const collect=homes.filter(p=>!p.biz.feeOver).length/N,owed=homes.reduce((n,p)=>n+p.biz.feeOver*p.biz.fee,0);
+  const pipe=homes.reduce((n,p)=>n+p.oppYr,0),hot=homes.filter(p=>lvl(p.score)==='hi').length;
+  const cnt=k=>k==='all'?homes.filter(p=>p.score>0).length:homes.filter(p=>qualifies(p,k)).length;
+  const val=k=>homes.reduce((n,p)=>{const x=p.opps.find(y=>y.o.k===k);return n+(x?x.yr:0);},0);
+  const leads=leadsFor(salesFilter),noConsent=(salesFilter==='all'?homes.filter(p=>p.score>0):homes.filter(p=>qualifies(p,salesFilter))).filter(p=>!p.biz.consent).length;
+  const legend=salesFilter==='all'?`<span><i style="background:#d9480f"></i>โอกาสสูง</span><span><i style="background:#f59f00"></i>กลาง</span><span><i style="background:#ead9a6"></i>ต่ำ</span><span><i style="background:#c8c5bc"></i>ไม่มี / ยังไม่โอน</span>`
+    :salesFilter==='fee'?`<span><i style="background:#f08c8c"></i>ค้าง 1 เดือน</span><span><i style="background:#e03131"></i>2 เดือน</span><span><i style="background:#9b1c1c"></i>3 เดือนขึ้นไป</span>`
+    :`<span><i style="background:#d9480f"></i>เข้าเงื่อนไข "${OFFERS.find(o=>o.k===salesFilter).t}"</span><span><i style="background:#c8c5bc"></i>ไม่เข้าเงื่อนไข</span>`;
+  const soi=LETTERS.map(soiStats);
+  $('#salesBody').innerHTML=`
+    <div class="pipe"><div><small>มูลค่าโอกาสขายรวม (ต่อปี)</small><b>${baht(pipe)}</b><small>จาก ${N} หลังที่โอนแล้ว</small></div><div class="hot"><small>บ้านโอกาสสูง</small><b>${hot}</b><small>หลัง</small></div></div>
+    <div class="kpis">
+      <div class="kpi"><b>${baht(svcRev/N)}</b><span>รายได้บริการต่อหลัง/ปี (ปัจจุบัน)</span></div>
+      <div class="kpi"><b>${Math.round(homes.filter(p=>p.biz.sec).length/N*100)}%</b><span>สมัคร Premium Security</span></div>
+      <div class="kpi"><b>${Math.round(homes.filter(p=>p.biz.jobs12>0).length/N*100)}%</b><span>ใช้ Home Service ใน 12 เดือน</span></div>
+      <div class="kpi${collect<0.9?' alert':''}"><b>${Math.round(collect*100)}%</b><span>เก็บค่าส่วนกลางครบ · ค้าง ${baht(owed)}</span></div>
+    </div>
+    <div><div class="sec-t" style="margin-bottom:6px">มุมมองบนผัง</div>
+      <div class="chips offer-chips">${[['all','คะแนนรวม'],...OFFERS.map(o=>[o.k,o.t])].map(([k,t])=>`<button data-sf="${k}" aria-pressed="${salesFilter===k}">${t}<span class="n">${cnt(k)}</span></button>`).join('')}</div>
+      <div class="heat" style="margin-top:8px">${legend}</div>
+      ${salesFilter!=='all'&&salesFilter!=='fee'?`<p class="hint" style="margin-top:6px">มูลค่ารวม ${baht(val(salesFilter))}/ปี</p>`:''}
+    </div>
+    <div><div class="sec-t">รายซอย <small>กดเพื่อซูมไปที่ซอย</small></div>
+      <table class="soi"><thead><tr><th>ซอย</th><th>Security</th><th>Home Service</th><th>ค้างค่าส่วนกลาง</th><th>โอกาส/ปี</th></tr></thead><tbody>
+      ${soi.map(r=>`<tr class="r" data-soi="${r.L}"><td><b>${r.L}</b>${laneInc[r.L]?` <span class="tag hot">เหตุ ${laneInc[r.L]}</span>`:''}</td><td><div class="bar sec"><i style="width:${Math.round(r.sec*100)}%"></i></div></td><td><div class="bar"><i style="width:${Math.round(r.svc*100)}%"></i></div></td><td>${r.over?r.over+' หลัง':'-'}</td><td>${baht(r.opp)}</td></tr>`).join('')}
+      </tbody></table>
+    </div>
+    <div><div class="sec-t">รายชื่อที่ควรติดต่อ <small>${leads.length} หลัง${noConsent?` · ไม่รวม ${noConsent} หลังที่ไม่ให้ความยินยอม`:''}</small></div>
+      <div style="display:flex;flex-direction:column;gap:7px">${leads.slice(0,15).map(leadItem).join('')||'<div class="empty-st">ไม่มีรายการ</div>'}</div>
+      ${leads.length>15?`<p class="hint" style="margin-top:6px">แสดง 15 จาก ${leads.length} หลัง · ส่งออก CSV เพื่อดูทั้งหมด</p>`:''}
+    </div>`;
+  const b=$('#salesBadge');b.textContent=hot;b.hidden=!hot;
+}
+function leadItem(p){
+  const occ=occupant(p),L=lvl(p.score),show=salesFilter==='all'?p.opps.filter(x=>x.o.k!=='fee'):p.opps.filter(x=>x.o.k===salesFilter);
+  const v=salesFilter==='all'?p.oppYr:show.reduce((n,x)=>n+x.yr,0);
+  return `<div class="lead ${salesFilter==='fee'?'hi':L}" data-house="${p.id}"><div class="lead-top"><span><b>${p.code}</b> <span class="score ${L}">${p.score}</span></span><span class="v">${baht(v)}${salesFilter==='fee'?'':'/ปี'}</span></div>
+    <small>${esc(occ?maskName(occ.name):'-')} · ${p.type} · ${p.occupancy}</small>
+    <div class="otags">${show.map(x=>`<span class="tag ${x.hot?'hot':'offer'}">${x.o.t}</span>`).join('')}</div></div>`;
+}
+function salesDetail(p){
+  const L=lvl(p.score);
+  let h=`<div class="sec"><div class="sec-t">โอกาสขาย <small><span class="score ${L}">${p.score}</span> ${LVL_T[L]}</small></div>`;
+  if(!p.opps.length)return h+'<div class="rows"><span class="empty">ไม่มีโอกาสขายตอนนี้</span></div></div>';
+  h+=`<ul class="rows offer-rows">${p.opps.map(x=>`<li><span><b>${x.o.t}</b><small>${esc(x.why)}</small></span><span><b>${baht(x.v)}</b><small>${PER_T[x.o.per]}</small></span></li>`).join('')}</ul>`;
+  if(!p.biz.consent)h+='<div class="consent-no">ลูกบ้านยังไม่ให้ความยินยอมรับข้อเสนอ (PDPA) — ห้ามติดต่อเพื่อเสนอขาย</div>';
+  return h+'</div>';
+}
+function openSales(v){
+  if(v&&!on('sales'))v=false;
+  if(v&&app.classList.contains('mon-open'))openMon(false);
+  app.classList.toggle('sales-open',v);$('#bSales').setAttribute('aria-pressed',v);$('#sales').setAttribute('aria-hidden',!v);
+  if(v){renderSales();if(matchMedia('(max-width:760px)').matches)select(null);}
+  setLens(v);
+}
+$('#bSales').onclick=()=>openSales(!app.classList.contains('sales-open'));
+// re-frame once a side panel has finished sliding (measuring mid-animation gives the wrong free area)
+['#sales','#monitor'].forEach(sel=>$(sel).addEventListener('transitionend',e=>{if(e.propertyName==='transform')relayoutSoon(20);}));
+$('#salesClose').onclick=()=>openSales(false);
+$('#salesBody').addEventListener('click',e=>{
+  const c=e.target.closest('[data-sf]');if(c){salesFilter=c.dataset.sf;renderSales();setFocus(focus);return;}
+  const r=e.target.closest('[data-soi]');if(r){const st=soiStats(r.dataset.soi);flyToPos(st.center);return;}
+  const l=e.target.closest('[data-house]');if(l){goHouse(plots[+l.dataset.house]);}
+});
+$('#salesCsv').onclick=()=>{
+  const rows=[['บ้าน','ซอย','คะแนน','ระดับ','ผู้ติดต่อ','โทร','สถานะพักอาศัย','ข้อเสนอ','เหตุผล','มูลค่า/ปี (บาท)']];
+  leadsFor(salesFilter).forEach(p=>{const occ=occupant(p),xs=salesFilter==='all'?p.opps.filter(x=>x.o.k!=='fee'):p.opps.filter(x=>x.o.k===salesFilter);
+    rows.push([p.code,p.code[0],p.score,LVL_T[lvl(p.score)],occ?occ.name:'',occ&&occ.phone||'',p.occupancy,xs.map(x=>x.o.t).join(' | '),xs.map(x=>x.why).join(' | '),Math.round(xs.reduce((n,x)=>n+x.yr,0))]);});
+  const csv='﻿'+rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download=`sales-leads-${salesFilter}-${new Date().toISOString().slice(0,10)}.csv`;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
+  toast(`ส่งออก ${rows.length-1} รายชื่อแล้ว`);
+};
+const _applyFeatures=applyFeatures;
+applyFeatures=function(){_applyFeatures();if(!on('sales'))openSales(false);else if(app.classList.contains('sales-open'))renderSales();};
+applyFeatures();
+{const h=location.hash.slice(1);if(h==='sales')setTimeout(()=>openSales(true),0);if(h==='monitor')openMon(true);else if(h==='settings')$('#bSet').click();else if(DESC[h])showTab(h);else if(/^CAM-\d+$/.test(h)&&camById(h))setTimeout(()=>openCam(camById(h)),0);}
+
+/* ---------- Loop ---------- */
+relayout();
+const clock=new THREE.Clock();
+const BOUND={x0:-210,x1:210,z0:-130,z1:190};
+const PULSE=new Set(['sos','pet','gate','sen_crit']);
+function frame(){
+  const dt=Math.min(clock.getDelta(),0.05),t=clock.elapsedTime;
+  night=reduced?nightT:night+(nightT-night)*Math.min(1,dt*2.2);if(Math.abs(nightT-night)<0.002)night=nightT;applyNight(night);
+  if(lifeOn&&!reduced)movers.forEach(m=>m.update(dt));
+  if(pin.visible){pin.position.y=10+Math.sin(t*3)*0.8;pin.rotation.y=t;const sc=mode==='2d'?1.6/ortho.zoom+0.4:1;pin.scale.setScalar(sc);}
+  if(dog.visible){
+    const a=reduced?0:t*0.7,u=dog.userData;
+    dog.position.set(petCenter.x+Math.cos(a)*2.4,0.14,petCenter.z+Math.sin(a)*2.4);dog.rotation.y=Math.atan2(-Math.cos(a),-Math.sin(a));
+    u.legs.forEach((g,i)=>g.rotation.z=reduced?0:Math.sin(t*11+(i%2?Math.PI:0)+(i>1?Math.PI/2:0))*0.55);
+  }
+  if(fly){
+    fly.k=Math.min(1,fly.k+dt/0.9);const e=1-Math.pow(1-fly.k,3);
+    fly.c.target.lerpVectors(fly.t0,fly.t1,e);fly.cam.position.lerpVectors(fly.p0,fly.p1,e);
+    if(fly.z0!=null){ortho.zoom=fly.z0+(fly.z1-fly.z0)*e;ortho.updateProjectionMatrix();}
+    if(fly.k>=1)fly=null;
+  }
+  const mf=mode==='3d'?Math.min(1.8,Math.max(0.55,persp.position.distanceTo(cP.target)/300)):Math.min(1.6,Math.max(0.3,1.3/ortho.zoom+0.15));
+  markerList.forEach(m=>{const k=m.userData.k,s=MK[k].size*mf*(PULSE.has(k)&&!reduced?1+Math.sin(t*6)*0.06:1);m.scale.set(s,s*1.25,1);});
+  if(rings.length){const ph=reduced?0.5:(t*0.8)%1;rings.forEach(r=>r.scale.setScalar(1+ph*1.6));ringMat.opacity=0.85*(1-ph);sosMat.emissive.setRGB(reduced?0.25:0.2+0.25*(0.5+0.5*Math.sin(t*6)),0.02,0.01);}
+  // keep the pan target over the site so the village can't be dragged off-screen
+  const ctl=mode==='3d'?cP:cO,tg=ctl.target,cx=Math.min(BOUND.x1,Math.max(BOUND.x0,tg.x)),cz=Math.min(BOUND.z1,Math.max(BOUND.z0,tg.z));
+  if(cx!==tg.x||cz!==tg.z){const dx=cx-tg.x,dz=cz-tg.z;tg.x=cx;tg.z=cz;ctl.object.position.x+=dx;ctl.object.position.z+=dz;}
+  ctl.update();
+  hover();
+  renderer.render(scene,cam);
+  renderCam();
+  requestAnimationFrame(frame);
+}
+frame();
+window.__village={openSales,setSalesFilter:k=>{salesFilter=k;renderSales();setFocus(focus);},setNight:v=>{nightT=v?1:0;night=nightT;},plots,movers,setMode,select,visitors,sosList,openMon,openCam,showTab,movePet,pet,cams,maint,cP,F,setFeature,events,aiList,rogues,sensors,gateAlerts,allVeh};
+})();
+</script>
